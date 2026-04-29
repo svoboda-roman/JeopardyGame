@@ -1,3 +1,13 @@
+import { config as loadEnv } from 'dotenv'
+import { existsSync } from 'node:fs'
+import { resolve } from 'node:path'
+
+// Load env from the repo root so a single .env is the source of truth
+// for all workspaces. Safe to call repeatedly; values from process.env
+// already set (e.g. by docker / Railway) take precedence.
+const rootEnv = resolve(import.meta.dir, '../../../.env')
+if (existsSync(rootEnv)) loadEnv({ path: rootEnv })
+
 function required(name: string): string {
   const v = process.env[name]
   if (!v || v.length === 0) throw new Error(`Missing required env var: ${name}`)
