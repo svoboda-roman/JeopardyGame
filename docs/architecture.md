@@ -1,5 +1,14 @@
 # Architecture
 
+> Part of the project doc set. See [`README.md`](README.md) for the full
+> reading order: requirements ([`srs.md`](srs.md)), use cases
+> ([`use-cases.md`](use-cases.md)), data model ([`erd.md`](erd.md)),
+> state machines ([`state-machines.md`](state-machines.md)), sequence
+> diagrams ([`sequence-diagrams.md`](sequence-diagrams.md)), API
+> ([`api.md`](api.md)), sitemap ([`sitemap.md`](sitemap.md)), system
+> diagrams ([`system-diagram.md`](system-diagram.md)), glossary
+> ([`glossary.md`](glossary.md)).
+
 ## Overview
 
 JeopardyGame is a monorepo containing a realtime Jeopardy-style game. The
