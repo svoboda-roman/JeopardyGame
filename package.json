@@ -2,7 +2,9 @@
 	"name": "jeopardy-game",
 	"private": true,
 	"workspaces": ["apps/*"],
-	"devDependencies": {},
+	"devDependencies": {
+		"@biomejs/biome": "2.4.13"
+	},
 	"dependencies": {
 		"typescript": "^6.0.3"
 	}
