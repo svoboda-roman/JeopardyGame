@@ -34,6 +34,14 @@ building and why.
 11. **[`glossary.md`](glossary.md)** — Authoritative definitions for
     every domain and technical term used above.
 
+## Implementation sub-plans
+
+Sub-plans live under [`plans/`](plans/) and decompose one slice from
+[`plan.md`](plan.md) into concrete files, steps, and acceptance.
+
+- [`plans/01-foundation.md`](plans/01-foundation.md) — Postgres,
+  Drizzle baseline, better-auth, layout guards. Currently active.
+
 ## Cross-cutting conventions
 
 - All requirement IDs (`FR-*`, `NFR-*`) trace back to
