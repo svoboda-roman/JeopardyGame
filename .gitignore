@@ -36,3 +36,9 @@ report.[0-9]_.[0-9]_.[0-9]_.[0-9]_.json
 # Docker volumes (local dev)
 pgdata
 uploads
+
+# TanStack Router generated route tree
+routeTree.gen.ts
+
+# Vite build output
+apps/web/dist
