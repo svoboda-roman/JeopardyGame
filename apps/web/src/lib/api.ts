@@ -1,5 +1,5 @@
 import { treaty } from '@elysiajs/eden'
-import type { App } from 'server/src/index.ts'
+import type { App } from 'server/src/app.ts'
 
 const baseURL = import.meta.env.VITE_API_URL ?? 'http://localhost:3000'
 
