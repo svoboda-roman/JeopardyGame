@@ -2,5 +2,8 @@
 	"name": "jeopardy-game",
 	"private": true,
 	"workspaces": ["apps/*"],
-	"devDependencies": {}
+	"devDependencies": {},
+	"dependencies": {
+		"typescript": "^6.0.3"
+	}
 }
