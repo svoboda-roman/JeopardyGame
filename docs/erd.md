@@ -1,9 +1,11 @@
 # Entity-Relationship Diagram
 
 Logical data model for v1. Implementation lives in
-`apps/server/src/db/schema.ts` (Drizzle). Tables prefixed `auth_` are
-managed by `better-auth` — names follow the library's defaults; do not
-hand-edit those rows in production.
+`apps/server/src/db/schema.ts` (Drizzle). The identity tables (`user`,
+`session`, `account`, `verification`) are managed by `better-auth` — they
+follow the library's default names, do not hand-edit those rows in
+production. Diagram nodes below labelled `AUTH_*` correspond to those
+tables. App-specific extensions live in `user_profile` (1:1 with `user`).
 
 > **Conventions**
 > - Primary keys are `id uuid` unless noted.
