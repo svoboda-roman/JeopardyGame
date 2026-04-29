@@ -40,7 +40,9 @@ Sub-plans live under [`plans/`](plans/) and decompose one slice from
 [`plan.md`](plan.md) into concrete files, steps, and acceptance.
 
 - [`plans/01-foundation.md`](plans/01-foundation.md) — Postgres,
-  Drizzle baseline, better-auth, layout guards. Currently active.
+  Drizzle baseline, better-auth, layout guards. Done.
+- [`plans/02-quizzes.md`](plans/02-quizzes.md) — Quiz CRUD + share
+  link. Currently active.
 
 ## Cross-cutting conventions
 

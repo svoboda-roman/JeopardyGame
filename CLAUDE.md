@@ -75,8 +75,9 @@ bun run format         # biome check --write
 Per-app:
 
 ```bash
-cd apps/web && bun dev       # Vite on :3000
-cd apps/server && bun dev    # (script TBD)
+cd apps/web && bun dev       # Vite on :5173
+cd apps/server && bun dev    # Elysia on :3000
+cd apps/server && bun test   # in-process integration tests
 ```
 
 ## Conventions
@@ -91,6 +92,21 @@ cd apps/server && bun dev    # (script TBD)
 - **Reconnection is a feature**, not an edge case. WS handlers must
   send a full snapshot on connect so a client can rejoin mid-game.
 
+## Testing
+
+- **Always write tests for new endpoints, route guards, and non-trivial
+  behaviour as part of the same chunk.** Don't lean on console / curl
+  smoke checks in lieu of tests — those leave nothing behind.
+- Server tests live in `apps/server/test/` and run via `bun test`. Drive
+  the in-process Elysia app through `app.handle(new Request(...))` (see
+  `test/helpers.ts`); never bind a port from a test.
+- Use the dev Postgres with **unique per-test data** (e.g. `uniqueEmail()`
+  for users) instead of cleanup, unless a test needs full isolation.
+- Web tests use Vitest + `@testing-library/react` (already installed) and
+  live next to the component or under `apps/web/test/`.
+- Tests are part of the change, not a follow-up: a chunk without tests
+  for what it added is incomplete.
+
 ## When making changes
 
 1. Check `docs/plan.md` to see if the work has a sub-plan or fits a
@@ -100,3 +116,4 @@ cd apps/server && bun dev    # (script TBD)
    approval — those are load-bearing decisions in the plan.
 4. Keep the type flow intact: never copy a server type into the web
    app by hand.
+5. New endpoint or guard? Add a test in the same commit (see Testing).
