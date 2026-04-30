@@ -259,9 +259,15 @@ export function transition(state: GameState, intent: Intent): TransitionResult {
       return ok(next, [
         {
           type: 'question_open',
-          questionRef: q.ref,
+          question: {
+            ref: q.ref,
+            categoryRef: q.categoryRef,
+            pointValue: q.pointValue,
+            isDailyDouble: q.isDailyDouble,
+            clue: q.clue,
+            answer: q.answer,
+          },
           opensBuzzAt: new Date(buzzOpensAtMs).toISOString(),
-          isDailyDouble: q.isDailyDouble,
         },
       ])
     }

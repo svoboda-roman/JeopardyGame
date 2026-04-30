@@ -4,6 +4,8 @@ import { useEffect, useRef, useState } from 'react'
 import { Button } from '#/components/ui/button.tsx'
 import { api } from '#/lib/api.ts'
 
+const apiUrl = import.meta.env.VITE_API_URL ?? 'http://localhost:3000'
+
 export const Route = createFileRoute('/_auth/quizzes/$quizId')({
   component: EditorPage,
 })
@@ -67,6 +69,7 @@ function EditorPage() {
       <header className="flex flex-wrap items-center gap-2 justify-between">
         <Link to="/quizzes" className="text-sm underline">← All quizzes</Link>
         <div className="flex gap-2">
+          <HostButton quizId={quizId} />
           <ShareButton quizId={quizId} />
           <Button
             variant="destructive"
@@ -281,6 +284,46 @@ function QuestionEditor({
         </p>
       </div>
     </div>
+  )
+}
+
+function HostButton({ quizId }: { quizId: string }) {
+  const navigate = useNavigate()
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  async function onClick() {
+    setBusy(true)
+    setError(null)
+    try {
+      const res = await fetch(`${apiUrl}/games`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ quizId }),
+      })
+      if (res.status === 409) {
+        setError('You already have an active game.')
+        return
+      }
+      if (!res.ok) {
+        setError('Could not start a game.')
+        return
+      }
+      const body = (await res.json()) as { game: { roomCode: string } }
+      navigate({ to: '/host/$roomCode', params: { roomCode: body.game.roomCode } })
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <>
+      <Button onClick={onClick} disabled={busy}>
+        {busy ? 'Starting…' : 'Host game'}
+      </Button>
+      {error && <span className="text-xs text-destructive">{error}</span>}
+    </>
   )
 }
 

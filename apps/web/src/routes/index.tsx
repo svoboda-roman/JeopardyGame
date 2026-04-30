@@ -10,9 +10,10 @@ function Home() {
       <p className="text-muted-foreground max-w-md">
         Author quizzes, host live games, buzz in. Mobile-first.
       </p>
-      <div className="flex gap-2">
+      <div className="flex flex-wrap justify-center gap-2">
+        <Link to="/join"><Button>Join with code</Button></Link>
         <Link to="/login"><Button variant="outline">Log in</Button></Link>
-        <Link to="/register"><Button>Get started</Button></Link>
+        <Link to="/register"><Button variant="outline">Register</Button></Link>
       </div>
     </div>
   )

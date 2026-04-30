@@ -68,7 +68,7 @@ export type ServerToClient =
   | { type: 'player_joined'; player: PlayerView }
   | { type: 'player_left'; playerId: string; reason: 'leave' | 'kicked' | 'disconnect' }
   | { type: 'game_started' }
-  | { type: 'question_open'; questionRef: string; opensBuzzAt: string; isDailyDouble: boolean }
+  | { type: 'question_open'; question: QuestionView; opensBuzzAt: string }
   | { type: 'buzz_open' }
   | { type: 'buzzed'; playerId: string }
   | {
