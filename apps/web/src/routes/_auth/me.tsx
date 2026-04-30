@@ -30,6 +30,7 @@ function MePage() {
       )}
 
       <div className="flex flex-wrap gap-2">
+        <Link to="/quizzes"><Button>My quizzes</Button></Link>
         <Link to="/settings"><Button variant="outline">Settings</Button></Link>
         <Button
           variant="outline"
