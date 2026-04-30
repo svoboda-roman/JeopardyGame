@@ -42,7 +42,9 @@ Sub-plans live under [`plans/`](plans/) and decompose one slice from
 - [`plans/01-foundation.md`](plans/01-foundation.md) — Postgres,
   Drizzle baseline, better-auth, layout guards. Done.
 - [`plans/02-quizzes.md`](plans/02-quizzes.md) — Quiz CRUD + share
-  link. Currently active.
+  link. Done.
+- [`plans/03-realtime-spike.md`](plans/03-realtime-spike.md) — WS
+  protocol + game state machine for one buzz cycle. Currently active.
 
 ## Cross-cutting conventions
 
