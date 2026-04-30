@@ -4,6 +4,7 @@ import {
   type InternalBoard,
   GameError,
   addPlayer,
+  ddWagerBounds,
   newGame,
   tickReadDelay,
   transition,
@@ -198,6 +199,119 @@ describe('one-question buzz cycle', () => {
     // p1 may.
     const r = transition(state, { type: 'select_question', actorId: 'p1', questionRef: 'q2' })
     expect(r.state.currentQuestionRef).toBe('q2')
+  })
+})
+
+describe('Daily Double', () => {
+  function ddBoard(): InternalBoard {
+    const tiny = tinyBoard()
+    tiny.questions['q1']!.isDailyDouble = true
+    return tiny
+  }
+
+  let ddState: GameState
+  beforeEach(() => {
+    ddState = newGame({
+      roomCode: 'DDDDDD',
+      hostId: 'u-host',
+      hostPlayer: { id: 'p-host', displayName: 'Host' },
+      board: ddBoard(),
+      options: { readDelayMs: 1000 },
+    })
+    ddState = addPlayer(ddState, { id: 'p1', displayName: 'P1' }).state
+    ddState = addPlayer(ddState, { id: 'p2', displayName: 'P2' }).state
+    ddState = transition(ddState, { type: 'start_game', actorId: 'p-host' }).state
+  })
+
+  it('selecting a DD goes to dd_wagering and broadcasts daily_double_pending with bounds', () => {
+    // Default picker is host; rotate to p1 via set_picker so a real player picks.
+    ddState = transition(ddState, { type: 'set_picker', actorId: 'p-host', playerId: 'p1' }).state
+    const r = transition(ddState, { type: 'select_question', actorId: 'p1', questionRef: 'q1' })
+    expect(r.state.phase).toBe('dd_wagering')
+    expect(r.state.currentPlayerId).toBe('p1')
+    const dd = r.broadcasts.find((b) => b.type === 'daily_double_pending')
+    expect(dd).toBeTruthy()
+    if (dd?.type === 'daily_double_pending') {
+      expect(dd.min).toBe(5)
+      // Max = max(5, max remaining pointValue, score). Score is 0; max remaining is 200.
+      expect(dd.max).toBe(200)
+    }
+  })
+
+  it('only the picker may wager; other players are rejected', () => {
+    ddState = transition(ddState, { type: 'set_picker', actorId: 'p-host', playerId: 'p1' }).state
+    ddState = transition(ddState, {
+      type: 'select_question',
+      actorId: 'p1',
+      questionRef: 'q1',
+    }).state
+    expect(() => transition(ddState, { type: 'wager', actorId: 'p2', amount: 100 })).toThrow(
+      GameError,
+    )
+  })
+
+  it('rejects wagers outside [min, max]', () => {
+    ddState = transition(ddState, { type: 'set_picker', actorId: 'p-host', playerId: 'p1' }).state
+    ddState = transition(ddState, {
+      type: 'select_question',
+      actorId: 'p1',
+      questionRef: 'q1',
+    }).state
+    const { min, max } = ddWagerBounds(ddState, 'p1')
+    expect(() => transition(ddState, { type: 'wager', actorId: 'p1', amount: min - 1 })).toThrow(
+      GameError,
+    )
+    expect(() => transition(ddState, { type: 'wager', actorId: 'p1', amount: max + 1 })).toThrow(
+      GameError,
+    )
+    expect(() => transition(ddState, { type: 'wager', actorId: 'p1', amount: 50.5 })).toThrow(
+      GameError,
+    )
+  })
+
+  it('valid wager → buzzed phase + clue_revealed; correct → +wager, picker rotates, closes', () => {
+    ddState = transition(ddState, { type: 'set_picker', actorId: 'p-host', playerId: 'p1' }).state
+    ddState = transition(ddState, {
+      type: 'select_question',
+      actorId: 'p1',
+      questionRef: 'q1',
+    }).state
+    const wagerR = transition(ddState, { type: 'wager', actorId: 'p1', amount: 150 })
+    expect(wagerR.state.phase).toBe('buzzed')
+    expect(wagerR.state.currentWager).toBe(150)
+    expect(wagerR.broadcasts.some((b) => b.type === 'clue_revealed')).toBe(true)
+
+    const judgedR = transition(wagerR.state, { type: 'judge', actorId: 'p-host', verdict: 'correct' })
+    expect(judgedR.state.players['p1']!.score).toBe(150)
+    expect(judgedR.state.closedQuestions.has('q1')).toBe(true)
+    expect(judgedR.state.phase).toBe('picking')
+    expect(judgedR.state.currentPickerId).toBe('p1')
+    expect(judgedR.state.currentWager).toBeNull()
+  })
+
+  it('DD no_answer is treated as incorrect (subtracts wager) and closes', () => {
+    ddState = transition(ddState, { type: 'set_picker', actorId: 'p-host', playerId: 'p1' }).state
+    ddState = transition(ddState, {
+      type: 'select_question',
+      actorId: 'p1',
+      questionRef: 'q1',
+    }).state
+    ddState = transition(ddState, { type: 'wager', actorId: 'p1', amount: 50 }).state
+    const r = transition(ddState, { type: 'judge', actorId: 'p-host', verdict: 'no_answer' })
+    expect(r.state.players['p1']!.score).toBe(-50)
+    expect(r.state.closedQuestions.has('q1')).toBe(true)
+  })
+
+  it('other players cannot buzz on a DD (they are locked out from select)', () => {
+    ddState = transition(ddState, { type: 'set_picker', actorId: 'p-host', playerId: 'p1' }).state
+    ddState = transition(ddState, {
+      type: 'select_question',
+      actorId: 'p1',
+      questionRef: 'q1',
+    }).state
+    ddState = transition(ddState, { type: 'wager', actorId: 'p1', amount: 50 }).state
+    // p2 cannot buzz; phase is 'buzzed' already (not buzz_open) so any buzz is invalid.
+    expect(() => transition(ddState, { type: 'buzz', actorId: 'p2', nowMs: 0 })).toThrow(GameError)
   })
 })
 

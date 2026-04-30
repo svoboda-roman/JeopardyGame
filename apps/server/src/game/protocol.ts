@@ -8,6 +8,7 @@ export type Phase =
   | 'reading'
   | 'buzz_open'
   | 'buzzed'
+  | 'dd_wagering'
   | 'completed'
 
 export type PlayerStatus = 'joined' | 'left' | 'kicked' | 'disconnected'
@@ -60,6 +61,7 @@ export type ClientToServer =
   | { type: 'close_question' }
   | { type: 'buzz' }
   | { type: 'judge'; verdict: 'correct' | 'incorrect' | 'no_answer' }
+  | { type: 'wager'; amount: number }
   | { type: 'set_picker'; playerId: string }
   | { type: 'leave' }
   | { type: 'ping' }
@@ -83,6 +85,14 @@ export type ServerToClient =
     }
   | { type: 'question_closed'; questionRef: string }
   | { type: 'picker_changed'; playerId: string | null }
+  | {
+      type: 'daily_double_pending'
+      pickerId: string
+      categoryRef: string
+      min: number
+      max: number
+    }
+  | { type: 'clue_revealed'; question: QuestionView; wager: number; pickerId: string }
   | { type: 'game_completed' }
   | { type: 'pong' }
   | { type: 'error'; code: string; message: string }

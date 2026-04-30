@@ -55,6 +55,8 @@ export interface GameState {
    * correct answerer; the host may override via `set_picker`.
    */
   currentPickerId: string | null
+  /** For Daily Double / Final Jeopardy: amount on the line. */
+  currentWager: number | null
 }
 
 // ───── Result + error helpers ─────
@@ -108,7 +110,19 @@ export function newGame(args: {
     currentPlayerId: null,
     lockedOutOnCurrent: new Set(),
     currentPickerId: null,
+    currentWager: null,
   }
+}
+
+/** Min and max wager bounds for a Daily Double picked by `playerId`. */
+export function ddWagerBounds(state: GameState, playerId: string): { min: number; max: number } {
+  const p = state.players[playerId]
+  const remaining = Object.values(state.board.questions)
+    .filter((q) => !state.closedQuestions.has(q.ref))
+    .map((q) => q.pointValue)
+  const maxRemaining = remaining.length > 0 ? Math.max(...remaining) : 5
+  const max = Math.max(5, maxRemaining, p?.score ?? 0)
+  return { min: 5, max }
 }
 
 // ───── View projection (state → wire view) ─────
@@ -213,6 +227,7 @@ export type Intent =
   | { type: 'judge'; actorId: string; verdict: 'correct' | 'incorrect' | 'no_answer' }
   | { type: 'close_question'; actorId: string }
   | { type: 'set_picker'; actorId: string; playerId: string }
+  | { type: 'wager'; actorId: string; amount: number }
 
 function requireHost(state: GameState, actorId: string) {
   const p = state.players[actorId]
@@ -251,11 +266,45 @@ export function transition(state: GameState, intent: Intent): TransitionResult {
         throw new GameError('invalid_state', 'Question already closed')
       const q = state.board.questions[intent.questionRef]
       if (!q) throw new GameError('not_found', 'Unknown question')
+
+      // Daily Double: skip the buzz cycle. Only the picker plays.
+      if (q.isDailyDouble) {
+        const pickerId = state.currentPickerId
+        if (!pickerId) throw new GameError('invalid_state', 'No picker set')
+        const picker = state.players[pickerId]
+        if (!picker || picker.isHost)
+          throw new GameError('invalid_state', 'Host cannot play a Daily Double')
+        const lockedOut = new Set(
+          Object.values(state.players)
+            .filter((p) => !p.isHost && p.id !== pickerId)
+            .map((p) => p.id),
+        )
+        const next: GameState = {
+          ...state,
+          currentQuestionRef: intent.questionRef,
+          phase: 'dd_wagering',
+          currentPlayerId: pickerId,
+          lockedOutOnCurrent: lockedOut,
+          currentWager: null,
+        }
+        const { min, max } = ddWagerBounds(next, pickerId)
+        return ok(next, [
+          {
+            type: 'daily_double_pending',
+            pickerId,
+            categoryRef: q.categoryRef,
+            min,
+            max,
+          },
+        ])
+      }
+
       const next: GameState = {
         ...state,
         currentQuestionRef: intent.questionRef,
         currentPlayerId: null,
         lockedOutOnCurrent: new Set(),
+        currentWager: null,
       }
       // No broadcast — the open_question step is what reveals the clue.
       return ok(next)
@@ -323,11 +372,14 @@ export function transition(state: GameState, intent: Intent): TransitionResult {
       const p = state.players[state.currentPlayerId]
       if (!p) throw new GameError('not_found', 'Unknown player')
 
+      // DD: the wager is at stake, no_answer treated as incorrect (sub-plan decision).
+      const isDD = state.currentWager !== null
+      const stake = isDD ? state.currentWager! : q.pointValue
       const delta =
         intent.verdict === 'correct'
-          ? q.pointValue
-          : intent.verdict === 'incorrect'
-            ? -q.pointValue
+          ? stake
+          : intent.verdict === 'incorrect' || (isDD && intent.verdict === 'no_answer')
+            ? -stake
             : 0
 
       const nextScore = p.score + delta
@@ -356,7 +408,8 @@ export function transition(state: GameState, intent: Intent): TransitionResult {
       // Correct → close question, rotate picker. (FR-MG7)
       // Incorrect/no_answer with eligible players left → re-buzz.
       // Incorrect/no_answer with nobody left → close. (FR-MG7)
-      const shouldClose = intent.verdict === 'correct' || eligible.length === 0
+      // Daily Double: always closes regardless of verdict (no re-buzz).
+      const shouldClose = isDD || intent.verdict === 'correct' || eligible.length === 0
 
       if (shouldClose) {
         const nextClosed = new Set([...state.closedQuestions, q.ref])
@@ -373,6 +426,7 @@ export function transition(state: GameState, intent: Intent): TransitionResult {
           buzzOpensAtMs: null,
           lockedOutOnCurrent: new Set(),
           currentPickerId: allClosed ? null : nextPicker,
+          currentWager: null,
         }
         broadcasts.push({ type: 'question_closed', questionRef: q.ref })
         if (intent.verdict === 'correct' && nextPicker !== state.currentPickerId) {
@@ -413,6 +467,45 @@ export function transition(state: GameState, intent: Intent): TransitionResult {
       const broadcasts: ServerToClient[] = [{ type: 'question_closed', questionRef: ref }]
       if (allClosed) broadcasts.push({ type: 'game_completed' })
       return ok(next, broadcasts)
+    }
+
+    case 'wager': {
+      if (state.phase !== 'dd_wagering' || !state.currentQuestionRef || !state.currentPlayerId) {
+        throw new GameError('invalid_state', 'No wager pending')
+      }
+      if (intent.actorId !== state.currentPlayerId) {
+        throw new GameError('forbidden', 'Only the picking player may wager on a Daily Double')
+      }
+      const { min, max } = ddWagerBounds(state, intent.actorId)
+      if (
+        !Number.isInteger(intent.amount) ||
+        intent.amount < min ||
+        intent.amount > max
+      ) {
+        throw new GameError('invalid_wager', `Wager must be an integer between ${min} and ${max}`)
+      }
+      const q = state.board.questions[state.currentQuestionRef]
+      if (!q) throw new GameError('not_found', 'Unknown question')
+      const next: GameState = {
+        ...state,
+        phase: 'buzzed',
+        currentWager: intent.amount,
+      }
+      return ok(next, [
+        {
+          type: 'clue_revealed',
+          question: {
+            ref: q.ref,
+            categoryRef: q.categoryRef,
+            pointValue: q.pointValue,
+            isDailyDouble: q.isDailyDouble,
+            clue: q.clue,
+            answer: q.answer,
+          },
+          wager: intent.amount,
+          pickerId: intent.actorId,
+        },
+      ])
     }
 
     case 'set_picker': {
