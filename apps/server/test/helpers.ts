@@ -13,6 +13,19 @@ export function uniqueEmail(prefix = 'test'): string {
   return `${prefix}+${Date.now()}-${Math.random().toString(36).slice(2, 8)}@test.local`
 }
 
+export async function signUpAndGetCookie(name = 'Test User'): Promise<string> {
+  const email = uniqueEmail('user')
+  const res = await call('/api/auth/sign-up/email', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email, password: 'correct-horse-battery-staple', name }),
+  })
+  if (!res.ok) throw new Error(`signUp failed: ${res.status} ${await res.text()}`)
+  const cookie = extractSessionCookie(res)
+  if (!cookie) throw new Error('signUp did not return a session cookie')
+  return cookie
+}
+
 export function extractSessionCookie(res: Response): string | null {
   // bun's Response uses native Headers — getSetCookie is the standard way
   const setCookies =
