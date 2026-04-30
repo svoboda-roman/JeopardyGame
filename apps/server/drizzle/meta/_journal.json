@@ -15,6 +15,13 @@
       "when": 1777492570011,
       "tag": "0001_famous_the_hand",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1777523308956,
+      "tag": "0002_yellow_prowler",
+      "breakpoints": true
     }
   ]
 }

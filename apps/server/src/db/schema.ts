@@ -1,6 +1,9 @@
+import { sql } from 'drizzle-orm'
 import {
   boolean,
+  index,
   integer,
+  jsonb,
   pgTable,
   text,
   timestamp,
@@ -148,6 +151,101 @@ export const quizShare = pgTable(
   (t) => [uniqueIndex('quiz_share_token_uk').on(t.token)],
 )
 
+// ───── Game runtime ─────
+
+export const game = pgTable(
+  'game',
+  {
+    id: text('id').primaryKey().$defaultFn(uuid),
+    roomCode: text('room_code').notNull(),
+    quizId: text('quiz_id')
+      .notNull()
+      .references(() => quiz.id, { onDelete: 'restrict' }),
+    hostId: text('host_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    status: text('status').notNull(), // 'lobby' | 'active' | 'paused' | 'completed' | 'aborted'
+    options: jsonb('options').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    startedAt: timestamp('started_at', { withTimezone: true }),
+    endedAt: timestamp('ended_at', { withTimezone: true }),
+  },
+  (t) => [
+    uniqueIndex('game_room_code_uk').on(t.roomCode),
+    // A host may own at most one in-flight game (FR-G6).
+    uniqueIndex('game_host_active_uk')
+      .on(t.hostId)
+      .where(sql`status in ('lobby','active','paused')`),
+  ],
+)
+
+export const gameSnapshot = pgTable('game_snapshot', {
+  gameId: text('game_id')
+    .primaryKey()
+    .references(() => game.id, { onDelete: 'cascade' }),
+  quiz: jsonb('quiz').notNull(),
+})
+
+export const gamePlayer = pgTable(
+  'game_player',
+  {
+    id: text('id').primaryKey().$defaultFn(uuid),
+    gameId: text('game_id')
+      .notNull()
+      .references(() => game.id, { onDelete: 'cascade' }),
+    userId: text('user_id').references(() => user.id, { onDelete: 'set null' }),
+    displayName: text('display_name').notNull(),
+    guestToken: text('guest_token'),
+    score: integer('score').notNull().default(0),
+    status: text('status').notNull(), // 'joined' | 'left' | 'kicked' | 'disconnected'
+    joinedAt: timestamp('joined_at', { withTimezone: true }).notNull().defaultNow(),
+    leftAt: timestamp('left_at', { withTimezone: true }),
+  },
+  (t) => [
+    index('game_player_game_status_idx').on(t.gameId, t.status),
+    index('game_player_game_user_idx').on(t.gameId, t.userId),
+    uniqueIndex('game_player_guest_uk')
+      .on(t.gameId, t.guestToken)
+      .where(sql`guest_token is not null`),
+  ],
+)
+
+export const gameQuestionState = pgTable(
+  'game_question_state',
+  {
+    id: text('id').primaryKey().$defaultFn(uuid),
+    gameId: text('game_id')
+      .notNull()
+      .references(() => game.id, { onDelete: 'cascade' }),
+    questionRef: text('question_ref').notNull(), // id within the snapshot
+    state: text('state').notNull(),
+    currentPlayerId: text('current_player_id').references(() => gamePlayer.id, {
+      onDelete: 'set null',
+    }),
+    openedAt: timestamp('opened_at', { withTimezone: true }),
+    buzzedAt: timestamp('buzzed_at', { withTimezone: true }),
+    closedAt: timestamp('closed_at', { withTimezone: true }),
+  },
+  (t) => [uniqueIndex('game_question_state_uk').on(t.gameId, t.questionRef)],
+)
+
+export const gameEvent = pgTable(
+  'game_event',
+  {
+    id: text('id').primaryKey().$defaultFn(uuid),
+    gameId: text('game_id')
+      .notNull()
+      .references(() => game.id, { onDelete: 'cascade' }),
+    actorPlayerId: text('actor_player_id').references(() => gamePlayer.id, {
+      onDelete: 'set null',
+    }),
+    type: text('type').notNull(),
+    payload: jsonb('payload').notNull(),
+    at: timestamp('at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index('game_event_game_at_idx').on(t.gameId, t.at)],
+)
+
 export type User = typeof user.$inferSelect
 export type Session = typeof session.$inferSelect
 export type UserProfile = typeof userProfile.$inferSelect
@@ -156,3 +254,8 @@ export type Category = typeof category.$inferSelect
 export type Question = typeof question.$inferSelect
 export type FinalQuestion = typeof finalQuestion.$inferSelect
 export type QuizShare = typeof quizShare.$inferSelect
+export type Game = typeof game.$inferSelect
+export type GameSnapshot = typeof gameSnapshot.$inferSelect
+export type GamePlayer = typeof gamePlayer.$inferSelect
+export type GameQuestionState = typeof gameQuestionState.$inferSelect
+export type GameEvent = typeof gameEvent.$inferSelect
