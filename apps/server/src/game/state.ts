@@ -49,6 +49,12 @@ export interface GameState {
   currentPlayerId: string | null
   /** Players locked out of buzzing on the current question. */
   lockedOutOnCurrent: Set<string>
+  /**
+   * The player whose turn it is to pick a question. Null in lobby.
+   * Defaults to the host on game start; rotates to the most recent
+   * correct answerer; the host may override via `set_picker`.
+   */
+  currentPickerId: string | null
 }
 
 // ───── Result + error helpers ─────
@@ -101,6 +107,7 @@ export function newGame(args: {
     buzzOpensAtMs: null,
     currentPlayerId: null,
     lockedOutOnCurrent: new Set(),
+    currentPickerId: null,
   }
 }
 
@@ -144,6 +151,7 @@ export function projectView(state: GameState): GameView {
       : null,
     buzzOpensAt: state.buzzOpensAtMs ? new Date(state.buzzOpensAtMs).toISOString() : null,
     currentPlayerId: state.currentPlayerId,
+    currentPickerId: state.currentPickerId,
   }
 }
 
@@ -204,6 +212,7 @@ export type Intent =
   | { type: 'buzz'; actorId: string; nowMs: number }
   | { type: 'judge'; actorId: string; verdict: 'correct' | 'incorrect' | 'no_answer' }
   | { type: 'close_question'; actorId: string }
+  | { type: 'set_picker'; actorId: string; playerId: string }
 
 function requireHost(state: GameState, actorId: string) {
   const p = state.players[actorId]
@@ -223,12 +232,20 @@ export function transition(state: GameState, intent: Intent): TransitionResult {
       if (state.phase !== 'lobby') throw new GameError('invalid_state', 'Already started')
       const playerCount = Object.values(state.players).filter((p) => !p.isHost).length
       if (playerCount < 1) throw new GameError('not_enough_players', 'Need ≥ 1 non-host player')
-      const next: GameState = { ...state, phase: 'picking' }
-      return ok(next, [{ type: 'game_started' }])
+      // Host is the first picker; rotates on correct answers (FR-MG handled in `judge`).
+      const next: GameState = { ...state, phase: 'picking', currentPickerId: intent.actorId }
+      return ok(next, [
+        { type: 'game_started' },
+        { type: 'picker_changed', playerId: intent.actorId },
+      ])
     }
 
     case 'select_question': {
-      requireHost(state, intent.actorId)
+      // Either the host or the current picker may select.
+      const actor = state.players[intent.actorId]
+      if (!actor || (!actor.isHost && intent.actorId !== state.currentPickerId)) {
+        throw new GameError('forbidden', 'Only the host or current picker may select')
+      }
       if (state.phase !== 'picking') throw new GameError('invalid_state', 'Not picking')
       if (state.closedQuestions.has(intent.questionRef))
         throw new GameError('invalid_state', 'Question already closed')
@@ -319,20 +336,12 @@ export function transition(state: GameState, intent: Intent): TransitionResult {
         [p.id]: { ...p, score: nextScore },
       }
 
-      // For the spike: judging closes the question regardless of verdict.
-      const nextClosed = new Set([...state.closedQuestions, q.ref])
-      const allClosed = Object.values(state.board.questions).length === nextClosed.size
-
-      const next: GameState = {
-        ...state,
-        players: nextPlayers,
-        closedQuestions: nextClosed,
-        phase: allClosed ? 'completed' : 'picking',
-        currentQuestionRef: null,
-        currentPlayerId: null,
-        buzzOpensAtMs: null,
-        lockedOutOnCurrent: new Set(),
-      }
+      // Eligibility: any non-host, joined player not already locked out.
+      // For re-buzz we add the buzzed player to the locked set.
+      const nextLockedOut = new Set([...state.lockedOutOnCurrent, p.id])
+      const eligible = Object.values(nextPlayers).filter(
+        (pl) => !pl.isHost && pl.status === 'joined' && !nextLockedOut.has(pl.id),
+      )
 
       const broadcasts: ServerToClient[] = [
         {
@@ -342,10 +351,46 @@ export function transition(state: GameState, intent: Intent): TransitionResult {
           scoreDelta: delta,
           newScore: nextScore,
         },
-        { type: 'question_closed', questionRef: q.ref },
       ]
-      if (allClosed) broadcasts.push({ type: 'game_completed' })
 
+      // Correct → close question, rotate picker. (FR-MG7)
+      // Incorrect/no_answer with eligible players left → re-buzz.
+      // Incorrect/no_answer with nobody left → close. (FR-MG7)
+      const shouldClose = intent.verdict === 'correct' || eligible.length === 0
+
+      if (shouldClose) {
+        const nextClosed = new Set([...state.closedQuestions, q.ref])
+        const allClosed = Object.values(state.board.questions).length === nextClosed.size
+        const nextPicker =
+          intent.verdict === 'correct' ? p.id : state.currentPickerId
+        const next: GameState = {
+          ...state,
+          players: nextPlayers,
+          closedQuestions: nextClosed,
+          phase: allClosed ? 'completed' : 'picking',
+          currentQuestionRef: null,
+          currentPlayerId: null,
+          buzzOpensAtMs: null,
+          lockedOutOnCurrent: new Set(),
+          currentPickerId: allClosed ? null : nextPicker,
+        }
+        broadcasts.push({ type: 'question_closed', questionRef: q.ref })
+        if (intent.verdict === 'correct' && nextPicker !== state.currentPickerId) {
+          broadcasts.push({ type: 'picker_changed', playerId: nextPicker })
+        }
+        if (allClosed) broadcasts.push({ type: 'game_completed' })
+        return ok(next, broadcasts)
+      }
+
+      // Re-buzz: stay on this question, reopen buzzing.
+      const next: GameState = {
+        ...state,
+        players: nextPlayers,
+        phase: 'buzz_open',
+        currentPlayerId: null,
+        lockedOutOnCurrent: nextLockedOut,
+      }
+      broadcasts.push({ type: 'buzz_open' })
       return ok(next, broadcasts)
     }
 
@@ -363,10 +408,22 @@ export function transition(state: GameState, intent: Intent): TransitionResult {
         currentPlayerId: null,
         buzzOpensAtMs: null,
         lockedOutOnCurrent: new Set(),
+        currentPickerId: allClosed ? null : state.currentPickerId,
       }
       const broadcasts: ServerToClient[] = [{ type: 'question_closed', questionRef: ref }]
       if (allClosed) broadcasts.push({ type: 'game_completed' })
       return ok(next, broadcasts)
+    }
+
+    case 'set_picker': {
+      requireHost(state, intent.actorId)
+      const target = state.players[intent.playerId]
+      if (!target || target.isHost) throw new GameError('not_found', 'No such player')
+      if (state.phase !== 'picking')
+        throw new GameError('invalid_state', 'Can only override picker between questions')
+      if (state.currentPickerId === intent.playerId) return ok(state)
+      const next: GameState = { ...state, currentPickerId: intent.playerId }
+      return ok(next, [{ type: 'picker_changed', playerId: intent.playerId }])
     }
   }
 }

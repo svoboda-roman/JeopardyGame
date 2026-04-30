@@ -246,6 +246,17 @@ export const gameEvent = pgTable(
   (t) => [index('game_event_game_at_idx').on(t.gameId, t.at)],
 )
 
+// Persisted final ranking, written when a game reaches `completed`.
+// Surviving a server restart means `/games/:roomCode/result` keeps
+// working without replaying game_event.
+export const gameResult = pgTable('game_result', {
+  gameId: text('game_id')
+    .primaryKey()
+    .references(() => game.id, { onDelete: 'cascade' }),
+  ranking: jsonb('ranking').notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+})
+
 export type User = typeof user.$inferSelect
 export type Session = typeof session.$inferSelect
 export type UserProfile = typeof userProfile.$inferSelect
@@ -259,3 +270,4 @@ export type GameSnapshot = typeof gameSnapshot.$inferSelect
 export type GamePlayer = typeof gamePlayer.$inferSelect
 export type GameQuestionState = typeof gameQuestionState.$inferSelect
 export type GameEvent = typeof gameEvent.$inferSelect
+export type GameResult = typeof gameResult.$inferSelect

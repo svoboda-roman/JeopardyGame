@@ -22,6 +22,13 @@
       "when": 1777523308956,
       "tag": "0002_yellow_prowler",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1777563305211,
+      "tag": "0003_bitter_gamma_corps",
+      "breakpoints": true
     }
   ]
 }

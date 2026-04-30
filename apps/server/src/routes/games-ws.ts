@@ -85,6 +85,8 @@ function intentFor(playerId: string, msg: ClientToServer): Intent | null {
       return { type: 'buzz', actorId: playerId, nowMs: Date.now() }
     case 'judge':
       return { type: 'judge', actorId: playerId, verdict: msg.verdict }
+    case 'set_picker':
+      return { type: 'set_picker', actorId: playerId, playerId: msg.playerId }
     case 'leave':
     case 'ping':
       return null

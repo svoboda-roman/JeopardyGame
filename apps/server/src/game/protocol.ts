@@ -47,6 +47,8 @@ export interface GameView {
   buzzOpensAt: string | null
   /** Player currently buzzed in (only set in `buzzed`) */
   currentPlayerId: string | null
+  /** Player currently allowed to pick a question on the board. */
+  currentPickerId: string | null
 }
 
 // ───── client → server ─────
@@ -58,6 +60,7 @@ export type ClientToServer =
   | { type: 'close_question' }
   | { type: 'buzz' }
   | { type: 'judge'; verdict: 'correct' | 'incorrect' | 'no_answer' }
+  | { type: 'set_picker'; playerId: string }
   | { type: 'leave' }
   | { type: 'ping' }
 
@@ -79,6 +82,7 @@ export type ServerToClient =
       newScore: number
     }
   | { type: 'question_closed'; questionRef: string }
+  | { type: 'picker_changed'; playerId: string | null }
   | { type: 'game_completed' }
   | { type: 'pong' }
   | { type: 'error'; code: string; message: string }
