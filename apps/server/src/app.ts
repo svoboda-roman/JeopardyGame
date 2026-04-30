@@ -4,6 +4,7 @@ import { Elysia } from 'elysia'
 import { auth } from './auth.ts'
 import { env } from './env.ts'
 import { games } from './routes/games.ts'
+import { gamesWs } from './routes/games-ws.ts'
 import { quizzes } from './routes/quizzes.ts'
 import { share } from './routes/share.ts'
 
@@ -58,5 +59,6 @@ export const app = new Elysia()
   .use(quizzes)
   .use(share)
   .use(games)
+  .use(gamesWs)
 
 export type App = typeof app

@@ -1,0 +1,219 @@
+import { eq } from 'drizzle-orm'
+import { db } from '../db/client.ts'
+import {
+  game as gameTable,
+  gamePlayer as gamePlayerTable,
+  gameSnapshot as gameSnapshotTable,
+} from '../db/schema.ts'
+import type { ServerToClient } from './protocol.ts'
+import {
+  type GameState,
+  type Intent,
+  type InternalBoard,
+  GameError,
+  addPlayer,
+  newGame,
+  projectView,
+  setPlayerStatus,
+  tickReadDelay,
+  transition,
+} from './state.ts'
+
+// Minimal contract our handler needs from a connected socket.
+export interface RoomSocket {
+  send(data: string): unknown
+}
+
+interface SocketEntry {
+  socketId: string
+  ws: RoomSocket
+  playerId: string
+}
+
+export class RoomDriver {
+  private timer: ReturnType<typeof setTimeout> | null = null
+  private sockets = new Map<string, SocketEntry>()
+
+  constructor(
+    public roomCode: string,
+    private state: GameState,
+  ) {}
+
+  /** Snapshot for a freshly connected client (sent only to that socket). */
+  snapshotFor(playerId: string): ServerToClient {
+    return { type: 'snapshot', game: projectView(this.state), you: { playerId } }
+  }
+
+  /** Persist a join (state-machine), broadcast, and return the snapshot. */
+  registerSocket(entry: SocketEntry, opts: { playerInfo: { id: string; displayName: string } }) {
+    // Best-effort addPlayer; if already there this is a no-op.
+    try {
+      const r = addPlayer(this.state, opts.playerInfo)
+      this.state = r.state
+      this.broadcast(r.broadcasts)
+    } catch (e) {
+      if (e instanceof GameError) {
+        // Don't surface to the room; the joining client just won't see player_joined.
+      } else throw e
+    }
+    // If player previously disconnected, mark them back as joined.
+    if (this.state.players[opts.playerInfo.id]?.status === 'disconnected') {
+      const r = setPlayerStatus(this.state, opts.playerInfo.id, 'joined')
+      this.state = r.state
+      this.broadcast(r.broadcasts)
+    }
+    this.sockets.set(entry.socketId, entry)
+  }
+
+  unregisterSocket(socketId: string) {
+    const entry = this.sockets.get(socketId)
+    if (!entry) return
+    this.sockets.delete(socketId)
+    // If no other socket holds this player, mark disconnected.
+    const stillHere = [...this.sockets.values()].some((s) => s.playerId === entry.playerId)
+    if (!stillHere && this.state.players[entry.playerId]) {
+      try {
+        const r = setPlayerStatus(this.state, entry.playerId, 'disconnected')
+        this.state = r.state
+        this.broadcast(r.broadcasts)
+      } catch {
+        // ignore
+      }
+    }
+  }
+
+  handleIntent(intent: Intent) {
+    const r = transition(this.state, intent)
+    this.state = r.state
+    this.broadcast(r.broadcasts)
+    this.scheduleTick()
+  }
+
+  /** Called externally when wall-clock advances, in case our timer was missed. */
+  pumpTimers(nowMs: number = Date.now()) {
+    const r = tickReadDelay(this.state, nowMs)
+    if (r.state !== this.state) {
+      this.state = r.state
+      this.broadcast(r.broadcasts)
+    }
+  }
+
+  /** Stop pending timers — used when the room is evicted. */
+  dispose() {
+    if (this.timer) clearTimeout(this.timer)
+    this.timer = null
+  }
+
+  // For tests / inspection only.
+  getState(): GameState {
+    return this.state
+  }
+
+  private scheduleTick() {
+    if (this.timer) {
+      clearTimeout(this.timer)
+      this.timer = null
+    }
+    if (this.state.phase !== 'reading' || this.state.buzzOpensAtMs === null) return
+    const delay = Math.max(0, this.state.buzzOpensAtMs - Date.now())
+    this.timer = setTimeout(() => {
+      this.timer = null
+      this.pumpTimers()
+    }, delay)
+  }
+
+  private broadcast(messages: ServerToClient[]) {
+    if (messages.length === 0) return
+    for (const entry of this.sockets.values()) {
+      for (const m of messages) {
+        try {
+          entry.ws.send(JSON.stringify(m))
+        } catch {
+          // socket may be closing; ignore
+        }
+      }
+    }
+  }
+}
+
+const rooms = new Map<string, RoomDriver>()
+const inflightLoads = new Map<string, Promise<RoomDriver>>()
+
+export async function getOrLoadRoom(roomCode: string): Promise<RoomDriver | null> {
+  const existing = rooms.get(roomCode)
+  if (existing) return existing
+  const inflight = inflightLoads.get(roomCode)
+  if (inflight) return inflight
+
+  const promise = (async () => {
+    const games = await db
+      .select()
+      .from(gameTable)
+      .where(eq(gameTable.roomCode, roomCode))
+      .limit(1)
+    if (games.length === 0) return null
+    const g = games[0]!
+
+    const snap = await db
+      .select()
+      .from(gameSnapshotTable)
+      .where(eq(gameSnapshotTable.gameId, g.id))
+      .limit(1)
+    if (snap.length === 0) return null
+    const board = snap[0]!.quiz as InternalBoard
+
+    const players = await db
+      .select()
+      .from(gamePlayerTable)
+      .where(eq(gamePlayerTable.gameId, g.id))
+
+    // Find the host player slot (host_id matches user_id).
+    const hostPlayer = players.find((p) => p.userId === g.hostId)
+    if (!hostPlayer) return null
+
+    let state = newGame({
+      roomCode: g.roomCode,
+      hostId: g.hostId,
+      hostPlayer: { id: hostPlayer.id, displayName: hostPlayer.displayName },
+      board,
+      options: (g.options as { readDelayMs?: number }) ?? {},
+    })
+
+    // Hydrate remaining players.
+    for (const p of players) {
+      if (p.id === hostPlayer.id) continue
+      const r = addPlayer(state, { id: p.id, displayName: p.displayName })
+      state = r.state
+      // Mark left/kicked accordingly.
+      if (p.status !== 'joined') {
+        const r2 = setPlayerStatus(state, p.id, p.status as 'left' | 'kicked' | 'disconnected')
+        state = r2.state
+      }
+    }
+
+    const driver = new RoomDriver(g.roomCode, state)
+    rooms.set(g.roomCode, driver)
+    return driver
+  })()
+
+  inflightLoads.set(roomCode, promise as Promise<RoomDriver>)
+  try {
+    const result = await promise
+    return result
+  } finally {
+    inflightLoads.delete(roomCode)
+  }
+}
+
+export function evictRoom(roomCode: string) {
+  const r = rooms.get(roomCode)
+  if (!r) return
+  r.dispose()
+  rooms.delete(roomCode)
+}
+
+/** Tests / shutdown: drop all in-memory rooms (and their timers). */
+export function evictAllRooms() {
+  for (const r of rooms.values()) r.dispose()
+  rooms.clear()
+}
