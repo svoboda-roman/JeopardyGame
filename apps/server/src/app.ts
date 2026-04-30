@@ -3,6 +3,7 @@ import { openapi } from '@elysiajs/openapi'
 import { Elysia } from 'elysia'
 import { auth } from './auth.ts'
 import { env } from './env.ts'
+import { games } from './routes/games.ts'
 import { quizzes } from './routes/quizzes.ts'
 import { share } from './routes/share.ts'
 
@@ -56,5 +57,6 @@ export const app = new Elysia()
   )
   .use(quizzes)
   .use(share)
+  .use(games)
 
 export type App = typeof app
