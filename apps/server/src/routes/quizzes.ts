@@ -46,7 +46,7 @@ async function ownedQuestion(questionId: string, userId: string) {
   return rows[0]!.question
 }
 
-export const quizzes = new Elysia()
+export const quizzes = new Elysia({ tags: ['quizzes'] })
   .onError(({ error, set }) => {
     if (error instanceof HttpError) {
       set.status = error.status

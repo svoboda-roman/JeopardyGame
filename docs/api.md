@@ -4,6 +4,15 @@ Authoritative contract for the JeopardyGame backend (`apps/server`).
 References [`srs.md`](srs.md) (FR / NFR IDs) and [`use-cases.md`](use-cases.md)
 (UC IDs).
 
+> **Live spec.** With the dev server running (`apps/server: bun run dev`):
+> - **OpenAPI JSON**: `http://localhost:3000/docs/json`
+> - **Interactive UI** (Scalar): `http://localhost:3000/docs`
+>
+> The live spec is generated from Elysia `t` schemas and is the source
+> of truth for **shapes**. This document remains the source of truth
+> for **intent**, requirement traceability, and the WebSocket protocol
+> (which OpenAPI does not cover).
+
 The HTTP API is implemented in Elysia and consumed by the web client via
 [`@elysiajs/eden`](https://elysiajs.com/eden/treaty.html). Types are
 inferred end-to-end (`export type App = typeof app` → `treaty<App>()`),

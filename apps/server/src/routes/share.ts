@@ -9,7 +9,7 @@ import {
 } from '../db/schema.ts'
 import { HttpError, notFound } from '../lib/auth-helpers.ts'
 
-export const share = new Elysia()
+export const share = new Elysia({ tags: ['share'] })
   .onError(({ error, set }) => {
     if (error instanceof HttpError) {
       set.status = error.status
