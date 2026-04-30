@@ -44,7 +44,10 @@ Sub-plans live under [`plans/`](plans/) and decompose one slice from
 - [`plans/02-quizzes.md`](plans/02-quizzes.md) — Quiz CRUD + share
   link. Done.
 - [`plans/03-realtime-spike.md`](plans/03-realtime-spike.md) — WS
-  protocol + game state machine for one buzz cycle. Currently active.
+  protocol + game state machine for one buzz cycle. Done.
+- [`plans/04-full-game-loop.md`](plans/04-full-game-loop.md) —
+  Re-buzz, Daily Double, Final Jeopardy, persisted results,
+  history page. Currently active.
 
 ## Cross-cutting conventions
 
