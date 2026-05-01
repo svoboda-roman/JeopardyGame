@@ -1,363 +1,727 @@
-import { beforeEach, describe, expect, it } from 'bun:test'
+import { beforeEach, describe, expect, it } from "bun:test";
 import {
-  type GameState,
-  type InternalBoard,
-  GameError,
-  addPlayer,
-  ddWagerBounds,
-  newGame,
-  tickReadDelay,
-  transition,
-} from '../src/game/state.ts'
+	addPlayer,
+	ddWagerBounds,
+	GameError,
+	type GameState,
+	type InternalBoard,
+	newGame,
+	tickReadDelay,
+	transition,
+} from "../src/game/state.ts";
 
 function tinyBoard(): InternalBoard {
-  // 1 category, 2 questions for fast tests.
-  return {
-    categories: [{ ref: 'c1', position: 0, title: 'Test', questionRefs: ['q1', 'q2'] }],
-    questions: {
-      q1: {
-        ref: 'q1',
-        categoryRef: 'c1',
-        position: 0,
-        pointValue: 100,
-        isDailyDouble: false,
-        clue: 'clue 1',
-        answer: 'answer 1',
-      },
-      q2: {
-        ref: 'q2',
-        categoryRef: 'c1',
-        position: 1,
-        pointValue: 200,
-        isDailyDouble: false,
-        clue: 'clue 2',
-        answer: 'answer 2',
-      },
-    },
-  }
+	// 1 category, 2 questions for fast tests.
+	return {
+		categories: [
+			{ ref: "c1", position: 0, title: "Test", questionRefs: ["q1", "q2"] },
+		],
+		questions: {
+			q1: {
+				ref: "q1",
+				categoryRef: "c1",
+				position: 0,
+				pointValue: 100,
+				isDailyDouble: false,
+				clue: "clue 1",
+				answer: "answer 1",
+			},
+			q2: {
+				ref: "q2",
+				categoryRef: "c1",
+				position: 1,
+				pointValue: 200,
+				isDailyDouble: false,
+				clue: "clue 2",
+				answer: "answer 2",
+			},
+		},
+	};
 }
 
-let state: GameState
+let state: GameState;
 
 beforeEach(() => {
-  state = newGame({
-    roomCode: 'ABCDEF',
-    hostId: 'u-host',
-    hostPlayer: { id: 'p-host', displayName: 'Host' },
-    board: tinyBoard(),
-    options: { readDelayMs: 1000 },
-  })
-})
+	state = newGame({
+		roomCode: "ABCDEF",
+		hostId: "u-host",
+		hostPlayer: { id: "p-host", displayName: "Host" },
+		board: tinyBoard(),
+		options: { readDelayMs: 1000 },
+	});
+});
 
-describe('lobby + start', () => {
-  it('cannot start without ≥ 1 non-host player', () => {
-    expect(() => transition(state, { type: 'start_game', actorId: 'p-host' })).toThrow(GameError)
-  })
+describe("lobby + start", () => {
+	it("cannot start without ≥ 1 non-host player", () => {
+		expect(() =>
+			transition(state, { type: "start_game", actorId: "p-host" }),
+		).toThrow(GameError);
+	});
 
-  it('non-host cannot start', () => {
-    const r = addPlayer(state, { id: 'p1', displayName: 'P1' })
-    expect(() => transition(r.state, { type: 'start_game', actorId: 'p1' })).toThrow(GameError)
-  })
+	it("non-host cannot start", () => {
+		const r = addPlayer(state, { id: "p1", displayName: "P1" });
+		expect(() =>
+			transition(r.state, { type: "start_game", actorId: "p1" }),
+		).toThrow(GameError);
+	});
 
-  it('host with 1 player → picking + game_started + picker is host', () => {
-    state = addPlayer(state, { id: 'p1', displayName: 'P1' }).state
-    const r = transition(state, { type: 'start_game', actorId: 'p-host' })
-    expect(r.state.phase).toBe('picking')
-    expect(r.state.currentPickerId).toBe('p-host')
-    expect(r.broadcasts.some((b) => b.type === 'game_started')).toBe(true)
-    expect(
-      r.broadcasts.some((b) => b.type === 'picker_changed' && b.playerId === 'p-host'),
-    ).toBe(true)
-  })
-})
+	it("host with 1 player → picking + game_started + picker is host", () => {
+		state = addPlayer(state, { id: "p1", displayName: "P1" }).state;
+		const r = transition(state, { type: "start_game", actorId: "p-host" });
+		expect(r.state.phase).toBe("picking");
+		expect(r.state.currentPickerId).toBe("p-host");
+		expect(r.broadcasts.some((b) => b.type === "game_started")).toBe(true);
+		expect(
+			r.broadcasts.some(
+				(b) => b.type === "picker_changed" && b.playerId === "p-host",
+			),
+		).toBe(true);
+	});
+});
 
-describe('one-question buzz cycle', () => {
-  beforeEach(() => {
-    state = addPlayer(state, { id: 'p1', displayName: 'P1' }).state
-    state = addPlayer(state, { id: 'p2', displayName: 'P2' }).state
-    state = transition(state, { type: 'start_game', actorId: 'p-host' }).state
-    state = transition(state, {
-      type: 'select_question',
-      actorId: 'p-host',
-      questionRef: 'q1',
-    }).state
-    state = transition(state, { type: 'open_question', actorId: 'p-host', nowMs: 1000 }).state
-    // phase is now 'reading', buzzOpensAtMs = 2000
-  })
+describe("one-question buzz cycle", () => {
+	beforeEach(() => {
+		state = addPlayer(state, { id: "p1", displayName: "P1" }).state;
+		state = addPlayer(state, { id: "p2", displayName: "P2" }).state;
+		state = transition(state, { type: "start_game", actorId: "p-host" }).state;
+		state = transition(state, {
+			type: "select_question",
+			actorId: "p-host",
+			questionRef: "q1",
+		}).state;
+		state = transition(state, {
+			type: "open_question",
+			actorId: "p-host",
+			nowMs: 1000,
+		}).state;
+		// phase is now 'reading', buzzOpensAtMs = 2000
+	});
 
-  it('early buzz during reading → no transition + lockout + error broadcast', () => {
-    const r = transition(state, { type: 'buzz', actorId: 'p1', nowMs: 1500 })
-    expect(r.state.phase).toBe('reading')
-    expect(r.state.lockedOutOnCurrent.has('p1')).toBe(true)
-    expect(r.broadcasts.some((b) => b.type === 'error')).toBe(true)
-  })
+	it("early buzz during reading → no transition + lockout + error broadcast", () => {
+		const r = transition(state, { type: "buzz", actorId: "p1", nowMs: 1500 });
+		expect(r.state.phase).toBe("reading");
+		expect(r.state.lockedOutOnCurrent.has("p1")).toBe(true);
+		expect(r.broadcasts.some((b) => b.type === "error")).toBe(true);
+	});
 
-  it('tick at buzzOpensAt → buzz_open + buzz_open broadcast', () => {
-    const r = tickReadDelay(state, 2000)
-    expect(r.state.phase).toBe('buzz_open')
-    expect(r.broadcasts.some((b) => b.type === 'buzz_open')).toBe(true)
-  })
+	it("tick at buzzOpensAt → buzz_open + buzz_open broadcast", () => {
+		const r = tickReadDelay(state, 2000);
+		expect(r.state.phase).toBe("buzz_open");
+		expect(r.broadcasts.some((b) => b.type === "buzz_open")).toBe(true);
+	});
 
-  it('buzz after open → buzzed + currentPlayerId set', () => {
-    state = tickReadDelay(state, 2000).state
-    const r = transition(state, { type: 'buzz', actorId: 'p1', nowMs: 2050 })
-    expect(r.state.phase).toBe('buzzed')
-    expect(r.state.currentPlayerId).toBe('p1')
-    expect(r.broadcasts.some((b) => b.type === 'buzzed' && b.playerId === 'p1')).toBe(true)
-  })
+	it("buzz after open → buzzed + currentPlayerId set", () => {
+		state = tickReadDelay(state, 2000).state;
+		const r = transition(state, { type: "buzz", actorId: "p1", nowMs: 2050 });
+		expect(r.state.phase).toBe("buzzed");
+		expect(r.state.currentPlayerId).toBe("p1");
+		expect(
+			r.broadcasts.some((b) => b.type === "buzzed" && b.playerId === "p1"),
+		).toBe(true);
+	});
 
-  it('locked-out player cannot buzz after open', () => {
-    state = transition(state, { type: 'buzz', actorId: 'p1', nowMs: 1500 }).state
-    state = tickReadDelay(state, 2000).state
-    expect(() => transition(state, { type: 'buzz', actorId: 'p1', nowMs: 2050 })).toThrow(
-      GameError,
-    )
-  })
+	it("locked-out player cannot buzz after open", () => {
+		state = transition(state, {
+			type: "buzz",
+			actorId: "p1",
+			nowMs: 1500,
+		}).state;
+		state = tickReadDelay(state, 2000).state;
+		expect(() =>
+			transition(state, { type: "buzz", actorId: "p1", nowMs: 2050 }),
+		).toThrow(GameError);
+	});
 
-  it('only first buzz wins; second buzz fails', () => {
-    state = tickReadDelay(state, 2000).state
-    state = transition(state, { type: 'buzz', actorId: 'p1', nowMs: 2050 }).state
-    expect(() => transition(state, { type: 'buzz', actorId: 'p2', nowMs: 2060 })).toThrow(
-      GameError,
-    )
-  })
+	it("only first buzz wins; second buzz fails", () => {
+		state = tickReadDelay(state, 2000).state;
+		state = transition(state, {
+			type: "buzz",
+			actorId: "p1",
+			nowMs: 2050,
+		}).state;
+		expect(() =>
+			transition(state, { type: "buzz", actorId: "p2", nowMs: 2060 }),
+		).toThrow(GameError);
+	});
 
-  it('host cannot buzz', () => {
-    state = tickReadDelay(state, 2000).state
-    expect(() => transition(state, { type: 'buzz', actorId: 'p-host', nowMs: 2050 })).toThrow(
-      GameError,
-    )
-  })
+	it("host cannot buzz", () => {
+		state = tickReadDelay(state, 2000).state;
+		expect(() =>
+			transition(state, { type: "buzz", actorId: "p-host", nowMs: 2050 }),
+		).toThrow(GameError);
+	});
 
-  it('judge correct → score+; closes question; picker rotates to answerer', () => {
-    state = tickReadDelay(state, 2000).state
-    state = transition(state, { type: 'buzz', actorId: 'p1', nowMs: 2050 }).state
-    const r = transition(state, { type: 'judge', actorId: 'p-host', verdict: 'correct' })
-    expect(r.state.phase).toBe('picking')
-    expect(r.state.players['p1']!.score).toBe(100)
-    expect(r.state.closedQuestions.has('q1')).toBe(true)
-    expect(r.state.currentPickerId).toBe('p1')
-    const judged = r.broadcasts.find((b) => b.type === 'judged')
-    expect(judged).toMatchObject({ playerId: 'p1', verdict: 'correct', scoreDelta: 100, newScore: 100 })
-    expect(r.broadcasts.some((b) => b.type === 'picker_changed' && b.playerId === 'p1')).toBe(true)
-  })
+	it("judge correct → score+; closes question; picker rotates to answerer", () => {
+		state = tickReadDelay(state, 2000).state;
+		state = transition(state, {
+			type: "buzz",
+			actorId: "p1",
+			nowMs: 2050,
+		}).state;
+		const r = transition(state, {
+			type: "judge",
+			actorId: "p-host",
+			verdict: "correct",
+		});
+		expect(r.state.phase).toBe("picking");
+		expect(r.state.players["p1"]!.score).toBe(100);
+		expect(r.state.closedQuestions.has("q1")).toBe(true);
+		expect(r.state.currentPickerId).toBe("p1");
+		const judged = r.broadcasts.find((b) => b.type === "judged");
+		expect(judged).toMatchObject({
+			playerId: "p1",
+			verdict: "correct",
+			scoreDelta: 100,
+			newScore: 100,
+		});
+		expect(
+			r.broadcasts.some(
+				(b) => b.type === "picker_changed" && b.playerId === "p1",
+			),
+		).toBe(true);
+	});
 
-  it('judge incorrect with eligible players left → re-buzz (question stays open)', () => {
-    state = tickReadDelay(state, 2000).state
-    state = transition(state, { type: 'buzz', actorId: 'p1', nowMs: 2050 }).state
-    const r = transition(state, { type: 'judge', actorId: 'p-host', verdict: 'incorrect' })
-    expect(r.state.players['p1']!.score).toBe(-100)
-    expect(r.state.phase).toBe('buzz_open')
-    expect(r.state.closedQuestions.has('q1')).toBe(false)
-    expect(r.state.lockedOutOnCurrent.has('p1')).toBe(true)
-    expect(r.broadcasts.some((b) => b.type === 'buzz_open')).toBe(true)
-    // p1 cannot re-buzz on the same question
-    expect(() => transition(r.state, { type: 'buzz', actorId: 'p1', nowMs: 3000 })).toThrow(GameError)
-    // p2 still can
-    const r2 = transition(r.state, { type: 'buzz', actorId: 'p2', nowMs: 3010 })
-    expect(r2.state.phase).toBe('buzzed')
-    expect(r2.state.currentPlayerId).toBe('p2')
-  })
+	it("judge incorrect with eligible players left → re-buzz (question stays open)", () => {
+		state = tickReadDelay(state, 2000).state;
+		state = transition(state, {
+			type: "buzz",
+			actorId: "p1",
+			nowMs: 2050,
+		}).state;
+		const r = transition(state, {
+			type: "judge",
+			actorId: "p-host",
+			verdict: "incorrect",
+		});
+		expect(r.state.players["p1"]!.score).toBe(-100);
+		expect(r.state.phase).toBe("buzz_open");
+		expect(r.state.closedQuestions.has("q1")).toBe(false);
+		expect(r.state.lockedOutOnCurrent.has("p1")).toBe(true);
+		expect(r.broadcasts.some((b) => b.type === "buzz_open")).toBe(true);
+		// p1 cannot re-buzz on the same question
+		expect(() =>
+			transition(r.state, { type: "buzz", actorId: "p1", nowMs: 3000 }),
+		).toThrow(GameError);
+		// p2 still can
+		const r2 = transition(r.state, {
+			type: "buzz",
+			actorId: "p2",
+			nowMs: 3010,
+		});
+		expect(r2.state.phase).toBe("buzzed");
+		expect(r2.state.currentPlayerId).toBe("p2");
+	});
 
-  it('judge no_answer with no eligible players left → close question', () => {
-    state = tickReadDelay(state, 2000).state
-    // p1 buzzes, gets judged no_answer
-    state = transition(state, { type: 'buzz', actorId: 'p1', nowMs: 2050 }).state
-    state = transition(state, { type: 'judge', actorId: 'p-host', verdict: 'no_answer' }).state
-    expect(state.phase).toBe('buzz_open')
-    // p2 buzzes, gets judged no_answer too — now no eligible players left
-    state = transition(state, { type: 'buzz', actorId: 'p2', nowMs: 3000 }).state
-    const r = transition(state, { type: 'judge', actorId: 'p-host', verdict: 'no_answer' })
-    expect(r.state.closedQuestions.has('q1')).toBe(true)
-    expect(r.state.phase).toBe('picking')
-  })
+	it("judge no_answer with no eligible players left → close question", () => {
+		state = tickReadDelay(state, 2000).state;
+		// p1 buzzes, gets judged no_answer
+		state = transition(state, {
+			type: "buzz",
+			actorId: "p1",
+			nowMs: 2050,
+		}).state;
+		state = transition(state, {
+			type: "judge",
+			actorId: "p-host",
+			verdict: "no_answer",
+		}).state;
+		expect(state.phase).toBe("buzz_open");
+		// p2 buzzes, gets judged no_answer too — now no eligible players left
+		state = transition(state, {
+			type: "buzz",
+			actorId: "p2",
+			nowMs: 3000,
+		}).state;
+		const r = transition(state, {
+			type: "judge",
+			actorId: "p-host",
+			verdict: "no_answer",
+		});
+		expect(r.state.closedQuestions.has("q1")).toBe(true);
+		expect(r.state.phase).toBe("picking");
+	});
 
-  it('set_picker (host) overrides the picker; non-host cannot', () => {
-    state = tickReadDelay(state, 2000).state
-    state = transition(state, { type: 'buzz', actorId: 'p1', nowMs: 2050 }).state
-    state = transition(state, { type: 'judge', actorId: 'p-host', verdict: 'correct' }).state
-    // Picker rotated to p1; host overrides to p2.
-    const r = transition(state, { type: 'set_picker', actorId: 'p-host', playerId: 'p2' })
-    expect(r.state.currentPickerId).toBe('p2')
-    expect(r.broadcasts.some((b) => b.type === 'picker_changed' && b.playerId === 'p2')).toBe(true)
-    // p1 can't override.
-    expect(() => transition(r.state, { type: 'set_picker', actorId: 'p1', playerId: 'p1' })).toThrow(
-      GameError,
-    )
-  })
+	it("set_picker (host) overrides the picker; non-host cannot", () => {
+		state = tickReadDelay(state, 2000).state;
+		state = transition(state, {
+			type: "buzz",
+			actorId: "p1",
+			nowMs: 2050,
+		}).state;
+		state = transition(state, {
+			type: "judge",
+			actorId: "p-host",
+			verdict: "correct",
+		}).state;
+		// Picker rotated to p1; host overrides to p2.
+		const r = transition(state, {
+			type: "set_picker",
+			actorId: "p-host",
+			playerId: "p2",
+		});
+		expect(r.state.currentPickerId).toBe("p2");
+		expect(
+			r.broadcasts.some(
+				(b) => b.type === "picker_changed" && b.playerId === "p2",
+			),
+		).toBe(true);
+		// p1 can't override.
+		expect(() =>
+			transition(r.state, {
+				type: "set_picker",
+				actorId: "p1",
+				playerId: "p1",
+			}),
+		).toThrow(GameError);
+	});
 
-  it('the current picker (non-host) may select a question; other players cannot', () => {
-    // After p1 answers correctly, p1 becomes picker.
-    state = tickReadDelay(state, 2000).state
-    state = transition(state, { type: 'buzz', actorId: 'p1', nowMs: 2050 }).state
-    state = transition(state, { type: 'judge', actorId: 'p-host', verdict: 'correct' }).state
-    expect(state.currentPickerId).toBe('p1')
-    // p2 may not select.
-    expect(() =>
-      transition(state, { type: 'select_question', actorId: 'p2', questionRef: 'q2' }),
-    ).toThrow(GameError)
-    // p1 may.
-    const r = transition(state, { type: 'select_question', actorId: 'p1', questionRef: 'q2' })
-    expect(r.state.currentQuestionRef).toBe('q2')
-  })
-})
+	it("the current picker (non-host) may select a question; other players cannot", () => {
+		// After p1 answers correctly, p1 becomes picker.
+		state = tickReadDelay(state, 2000).state;
+		state = transition(state, {
+			type: "buzz",
+			actorId: "p1",
+			nowMs: 2050,
+		}).state;
+		state = transition(state, {
+			type: "judge",
+			actorId: "p-host",
+			verdict: "correct",
+		}).state;
+		expect(state.currentPickerId).toBe("p1");
+		// p2 may not select.
+		expect(() =>
+			transition(state, {
+				type: "select_question",
+				actorId: "p2",
+				questionRef: "q2",
+			}),
+		).toThrow(GameError);
+		// p1 may.
+		const r = transition(state, {
+			type: "select_question",
+			actorId: "p1",
+			questionRef: "q2",
+		});
+		expect(r.state.currentQuestionRef).toBe("q2");
+	});
+});
 
-describe('Daily Double', () => {
-  function ddBoard(): InternalBoard {
-    const tiny = tinyBoard()
-    tiny.questions['q1']!.isDailyDouble = true
-    return tiny
-  }
+describe("Daily Double", () => {
+	function ddBoard(): InternalBoard {
+		const tiny = tinyBoard();
+		tiny.questions["q1"]!.isDailyDouble = true;
+		return tiny;
+	}
 
-  let ddState: GameState
-  beforeEach(() => {
-    ddState = newGame({
-      roomCode: 'DDDDDD',
-      hostId: 'u-host',
-      hostPlayer: { id: 'p-host', displayName: 'Host' },
-      board: ddBoard(),
-      options: { readDelayMs: 1000 },
-    })
-    ddState = addPlayer(ddState, { id: 'p1', displayName: 'P1' }).state
-    ddState = addPlayer(ddState, { id: 'p2', displayName: 'P2' }).state
-    ddState = transition(ddState, { type: 'start_game', actorId: 'p-host' }).state
-  })
+	let ddState: GameState;
+	beforeEach(() => {
+		ddState = newGame({
+			roomCode: "DDDDDD",
+			hostId: "u-host",
+			hostPlayer: { id: "p-host", displayName: "Host" },
+			board: ddBoard(),
+			options: { readDelayMs: 1000 },
+		});
+		ddState = addPlayer(ddState, { id: "p1", displayName: "P1" }).state;
+		ddState = addPlayer(ddState, { id: "p2", displayName: "P2" }).state;
+		ddState = transition(ddState, {
+			type: "start_game",
+			actorId: "p-host",
+		}).state;
+	});
 
-  it('selecting a DD goes to dd_wagering and broadcasts daily_double_pending with bounds', () => {
-    // Default picker is host; rotate to p1 via set_picker so a real player picks.
-    ddState = transition(ddState, { type: 'set_picker', actorId: 'p-host', playerId: 'p1' }).state
-    const r = transition(ddState, { type: 'select_question', actorId: 'p1', questionRef: 'q1' })
-    expect(r.state.phase).toBe('dd_wagering')
-    expect(r.state.currentPlayerId).toBe('p1')
-    const dd = r.broadcasts.find((b) => b.type === 'daily_double_pending')
-    expect(dd).toBeTruthy()
-    if (dd?.type === 'daily_double_pending') {
-      expect(dd.min).toBe(5)
-      // Max = max(5, max remaining pointValue, score). Score is 0; max remaining is 200.
-      expect(dd.max).toBe(200)
-    }
-  })
+	it("selecting a DD goes to dd_wagering and broadcasts daily_double_pending with bounds", () => {
+		// Default picker is host; rotate to p1 via set_picker so a real player picks.
+		ddState = transition(ddState, {
+			type: "set_picker",
+			actorId: "p-host",
+			playerId: "p1",
+		}).state;
+		const r = transition(ddState, {
+			type: "select_question",
+			actorId: "p1",
+			questionRef: "q1",
+		});
+		expect(r.state.phase).toBe("dd_wagering");
+		expect(r.state.currentPlayerId).toBe("p1");
+		const dd = r.broadcasts.find((b) => b.type === "daily_double_pending");
+		expect(dd).toBeTruthy();
+		if (dd?.type === "daily_double_pending") {
+			expect(dd.min).toBe(5);
+			// Max = max(5, max remaining pointValue, score). Score is 0; max remaining is 200.
+			expect(dd.max).toBe(200);
+		}
+	});
 
-  it('only the picker may wager; other players are rejected', () => {
-    ddState = transition(ddState, { type: 'set_picker', actorId: 'p-host', playerId: 'p1' }).state
-    ddState = transition(ddState, {
-      type: 'select_question',
-      actorId: 'p1',
-      questionRef: 'q1',
-    }).state
-    expect(() => transition(ddState, { type: 'wager', actorId: 'p2', amount: 100 })).toThrow(
-      GameError,
-    )
-  })
+	it("only the picker may wager; other players are rejected", () => {
+		ddState = transition(ddState, {
+			type: "set_picker",
+			actorId: "p-host",
+			playerId: "p1",
+		}).state;
+		ddState = transition(ddState, {
+			type: "select_question",
+			actorId: "p1",
+			questionRef: "q1",
+		}).state;
+		expect(() =>
+			transition(ddState, { type: "wager", actorId: "p2", amount: 100 }),
+		).toThrow(GameError);
+	});
 
-  it('rejects wagers outside [min, max]', () => {
-    ddState = transition(ddState, { type: 'set_picker', actorId: 'p-host', playerId: 'p1' }).state
-    ddState = transition(ddState, {
-      type: 'select_question',
-      actorId: 'p1',
-      questionRef: 'q1',
-    }).state
-    const { min, max } = ddWagerBounds(ddState, 'p1')
-    expect(() => transition(ddState, { type: 'wager', actorId: 'p1', amount: min - 1 })).toThrow(
-      GameError,
-    )
-    expect(() => transition(ddState, { type: 'wager', actorId: 'p1', amount: max + 1 })).toThrow(
-      GameError,
-    )
-    expect(() => transition(ddState, { type: 'wager', actorId: 'p1', amount: 50.5 })).toThrow(
-      GameError,
-    )
-  })
+	it("rejects wagers outside [min, max]", () => {
+		ddState = transition(ddState, {
+			type: "set_picker",
+			actorId: "p-host",
+			playerId: "p1",
+		}).state;
+		ddState = transition(ddState, {
+			type: "select_question",
+			actorId: "p1",
+			questionRef: "q1",
+		}).state;
+		const { min, max } = ddWagerBounds(ddState, "p1");
+		expect(() =>
+			transition(ddState, { type: "wager", actorId: "p1", amount: min - 1 }),
+		).toThrow(GameError);
+		expect(() =>
+			transition(ddState, { type: "wager", actorId: "p1", amount: max + 1 }),
+		).toThrow(GameError);
+		expect(() =>
+			transition(ddState, { type: "wager", actorId: "p1", amount: 50.5 }),
+		).toThrow(GameError);
+	});
 
-  it('valid wager → buzzed phase + clue_revealed; correct → +wager, picker rotates, closes', () => {
-    ddState = transition(ddState, { type: 'set_picker', actorId: 'p-host', playerId: 'p1' }).state
-    ddState = transition(ddState, {
-      type: 'select_question',
-      actorId: 'p1',
-      questionRef: 'q1',
-    }).state
-    const wagerR = transition(ddState, { type: 'wager', actorId: 'p1', amount: 150 })
-    expect(wagerR.state.phase).toBe('buzzed')
-    expect(wagerR.state.currentWager).toBe(150)
-    expect(wagerR.broadcasts.some((b) => b.type === 'clue_revealed')).toBe(true)
+	it("valid wager → buzzed phase + clue_revealed; correct → +wager, picker rotates, closes", () => {
+		ddState = transition(ddState, {
+			type: "set_picker",
+			actorId: "p-host",
+			playerId: "p1",
+		}).state;
+		ddState = transition(ddState, {
+			type: "select_question",
+			actorId: "p1",
+			questionRef: "q1",
+		}).state;
+		const wagerR = transition(ddState, {
+			type: "wager",
+			actorId: "p1",
+			amount: 150,
+		});
+		expect(wagerR.state.phase).toBe("buzzed");
+		expect(wagerR.state.currentWager).toBe(150);
+		expect(wagerR.broadcasts.some((b) => b.type === "clue_revealed")).toBe(
+			true,
+		);
 
-    const judgedR = transition(wagerR.state, { type: 'judge', actorId: 'p-host', verdict: 'correct' })
-    expect(judgedR.state.players['p1']!.score).toBe(150)
-    expect(judgedR.state.closedQuestions.has('q1')).toBe(true)
-    expect(judgedR.state.phase).toBe('picking')
-    expect(judgedR.state.currentPickerId).toBe('p1')
-    expect(judgedR.state.currentWager).toBeNull()
-  })
+		const judgedR = transition(wagerR.state, {
+			type: "judge",
+			actorId: "p-host",
+			verdict: "correct",
+		});
+		expect(judgedR.state.players["p1"]!.score).toBe(150);
+		expect(judgedR.state.closedQuestions.has("q1")).toBe(true);
+		expect(judgedR.state.phase).toBe("picking");
+		expect(judgedR.state.currentPickerId).toBe("p1");
+		expect(judgedR.state.currentWager).toBeNull();
+	});
 
-  it('DD no_answer is treated as incorrect (subtracts wager) and closes', () => {
-    ddState = transition(ddState, { type: 'set_picker', actorId: 'p-host', playerId: 'p1' }).state
-    ddState = transition(ddState, {
-      type: 'select_question',
-      actorId: 'p1',
-      questionRef: 'q1',
-    }).state
-    ddState = transition(ddState, { type: 'wager', actorId: 'p1', amount: 50 }).state
-    const r = transition(ddState, { type: 'judge', actorId: 'p-host', verdict: 'no_answer' })
-    expect(r.state.players['p1']!.score).toBe(-50)
-    expect(r.state.closedQuestions.has('q1')).toBe(true)
-  })
+	it("DD no_answer is treated as incorrect (subtracts wager) and closes", () => {
+		ddState = transition(ddState, {
+			type: "set_picker",
+			actorId: "p-host",
+			playerId: "p1",
+		}).state;
+		ddState = transition(ddState, {
+			type: "select_question",
+			actorId: "p1",
+			questionRef: "q1",
+		}).state;
+		ddState = transition(ddState, {
+			type: "wager",
+			actorId: "p1",
+			amount: 50,
+		}).state;
+		const r = transition(ddState, {
+			type: "judge",
+			actorId: "p-host",
+			verdict: "no_answer",
+		});
+		expect(r.state.players["p1"]!.score).toBe(-50);
+		expect(r.state.closedQuestions.has("q1")).toBe(true);
+	});
 
-  it('other players cannot buzz on a DD (they are locked out from select)', () => {
-    ddState = transition(ddState, { type: 'set_picker', actorId: 'p-host', playerId: 'p1' }).state
-    ddState = transition(ddState, {
-      type: 'select_question',
-      actorId: 'p1',
-      questionRef: 'q1',
-    }).state
-    ddState = transition(ddState, { type: 'wager', actorId: 'p1', amount: 50 }).state
-    // p2 cannot buzz; phase is 'buzzed' already (not buzz_open) so any buzz is invalid.
-    expect(() => transition(ddState, { type: 'buzz', actorId: 'p2', nowMs: 0 })).toThrow(GameError)
-  })
-})
+	it("other players cannot buzz on a DD (they are locked out from select)", () => {
+		ddState = transition(ddState, {
+			type: "set_picker",
+			actorId: "p-host",
+			playerId: "p1",
+		}).state;
+		ddState = transition(ddState, {
+			type: "select_question",
+			actorId: "p1",
+			questionRef: "q1",
+		}).state;
+		ddState = transition(ddState, {
+			type: "wager",
+			actorId: "p1",
+			amount: 50,
+		}).state;
+		// p2 cannot buzz; phase is 'buzzed' already (not buzz_open) so any buzz is invalid.
+		expect(() =>
+			transition(ddState, { type: "buzz", actorId: "p2", nowMs: 0 }),
+		).toThrow(GameError);
+	});
+});
 
-describe('completion', () => {
-  it('closing the last question transitions to completed and broadcasts game_completed', () => {
-    state = addPlayer(state, { id: 'p1', displayName: 'P1' }).state
-    state = transition(state, { type: 'start_game', actorId: 'p-host' }).state
+describe("completion", () => {
+	it("closing the last question transitions to completed and broadcasts game_completed", () => {
+		state = addPlayer(state, { id: "p1", displayName: "P1" }).state;
+		state = transition(state, { type: "start_game", actorId: "p-host" }).state;
 
-    // Close q1
-    state = transition(state, { type: 'select_question', actorId: 'p-host', questionRef: 'q1' }).state
-    state = transition(state, { type: 'open_question', actorId: 'p-host', nowMs: 0 }).state
-    state = tickReadDelay(state, state.options.readDelayMs).state
-    state = transition(state, { type: 'buzz', actorId: 'p1', nowMs: 100 }).state
-    state = transition(state, { type: 'judge', actorId: 'p-host', verdict: 'no_answer' }).state
+		// Close q1
+		state = transition(state, {
+			type: "select_question",
+			actorId: "p-host",
+			questionRef: "q1",
+		}).state;
+		state = transition(state, {
+			type: "open_question",
+			actorId: "p-host",
+			nowMs: 0,
+		}).state;
+		state = tickReadDelay(state, state.options.readDelayMs).state;
+		state = transition(state, {
+			type: "buzz",
+			actorId: "p1",
+			nowMs: 100,
+		}).state;
+		state = transition(state, {
+			type: "judge",
+			actorId: "p-host",
+			verdict: "no_answer",
+		}).state;
 
-    // Close q2
-    state = transition(state, { type: 'select_question', actorId: 'p-host', questionRef: 'q2' }).state
-    state = transition(state, { type: 'open_question', actorId: 'p-host', nowMs: 1000 }).state
-    state = tickReadDelay(state, 1000 + state.options.readDelayMs).state
-    state = transition(state, { type: 'buzz', actorId: 'p1', nowMs: 5000 }).state
-    const r = transition(state, { type: 'judge', actorId: 'p-host', verdict: 'no_answer' })
+		// Close q2
+		state = transition(state, {
+			type: "select_question",
+			actorId: "p-host",
+			questionRef: "q2",
+		}).state;
+		state = transition(state, {
+			type: "open_question",
+			actorId: "p-host",
+			nowMs: 1000,
+		}).state;
+		state = tickReadDelay(state, 1000 + state.options.readDelayMs).state;
+		state = transition(state, {
+			type: "buzz",
+			actorId: "p1",
+			nowMs: 5000,
+		}).state;
+		const r = transition(state, {
+			type: "judge",
+			actorId: "p-host",
+			verdict: "no_answer",
+		});
 
-    expect(r.state.phase).toBe('completed')
-    expect(r.broadcasts.some((b) => b.type === 'game_completed')).toBe(true)
-  })
-})
+		expect(r.state.phase).toBe("completed");
+		expect(r.broadcasts.some((b) => b.type === "game_completed")).toBe(true);
+	});
+});
 
-describe('lobby join rules', () => {
-  it('can join during lobby and picking, but not during reading', () => {
-    const r1 = addPlayer(state, { id: 'p1', displayName: 'P1' })
-    expect(r1.state.players['p1']?.status).toBe('joined')
-    expect(r1.broadcasts[0]?.type).toBe('player_joined')
+describe("Final Jeopardy", () => {
+	function fjSetup(): GameState {
+		let s = newGame({
+			roomCode: "FJFJFJ",
+			hostId: "u-host",
+			hostPlayer: { id: "p-host", displayName: "Host" },
+			board: tinyBoard(),
+			finalQuestion: { category: "FJ Cat", clue: "fj clue", answer: "fj ans" },
+			options: { readDelayMs: 1000, finalEnabled: true },
+		});
+		s = addPlayer(s, { id: "p1", displayName: "P1" }).state;
+		s = addPlayer(s, { id: "p2", displayName: "P2" }).state;
+		s = transition(s, { type: "start_game", actorId: "p-host" }).state;
+		// q1: p1 answers correct → +100, picker rotates to p1.
+		s = transition(s, {
+			type: "select_question",
+			actorId: "p-host",
+			questionRef: "q1",
+		}).state;
+		s = transition(s, {
+			type: "open_question",
+			actorId: "p-host",
+			nowMs: 0,
+		}).state;
+		s = tickReadDelay(s, s.options.readDelayMs).state;
+		s = transition(s, { type: "buzz", actorId: "p1", nowMs: 100 }).state;
+		s = transition(s, {
+			type: "judge",
+			actorId: "p-host",
+			verdict: "correct",
+		}).state;
+		// q2: pick + close (no buzz).
+		s = transition(s, {
+			type: "select_question",
+			actorId: "p1",
+			questionRef: "q2",
+		}).state;
+		s = transition(s, { type: "close_question", actorId: "p-host" }).state;
+		return s;
+	}
 
-    const started = transition(r1.state, { type: 'start_game', actorId: 'p-host' }).state
-    const r2 = addPlayer(started, { id: 'p2', displayName: 'P2' })
-    expect(r2.state.players['p2']).toBeTruthy()
+	it("after all main questions, start_final → fj_wager; fj_started lists only eligible (score > 0)", () => {
+		const s = fjSetup();
+		expect(s.phase).toBe("picking");
+		expect(s.players["p1"]!.score).toBe(100);
+		expect(s.players["p2"]!.score).toBe(0);
+		const r = transition(s, { type: "start_final", actorId: "p-host" });
+		expect(r.state.phase).toBe("fj_wager");
+		const started = r.broadcasts.find((b) => b.type === "fj_started");
+		expect(started).toBeTruthy();
+		if (started?.type === "fj_started") {
+			expect(started.eligible).toEqual(["p1"]);
+			expect(started.category).toBe("FJ Cat");
+		}
+	});
 
-    const opened = transition(r2.state, { type: 'select_question', actorId: 'p-host', questionRef: 'q1' }).state
-    const reading = transition(opened, { type: 'open_question', actorId: 'p-host', nowMs: 0 }).state
-    expect(() => addPlayer(reading, { id: 'p3', displayName: 'P3' })).toThrow(GameError)
-  })
+	it("without FJ enabled, all questions closed → completed (regression)", () => {
+		let s = newGame({
+			roomCode: "NOFJOK",
+			hostId: "u-host",
+			hostPlayer: { id: "p-host", displayName: "Host" },
+			board: tinyBoard(),
+			// finalEnabled defaults to false; no finalQuestion.
+		});
+		s = addPlayer(s, { id: "p1", displayName: "P1" }).state;
+		s = transition(s, { type: "start_game", actorId: "p-host" }).state;
+		s = transition(s, {
+			type: "select_question",
+			actorId: "p-host",
+			questionRef: "q1",
+		}).state;
+		s = transition(s, { type: "close_question", actorId: "p-host" }).state;
+		s = transition(s, {
+			type: "select_question",
+			actorId: "p-host",
+			questionRef: "q2",
+		}).state;
+		const r = transition(s, { type: "close_question", actorId: "p-host" });
+		expect(r.state.phase).toBe("completed");
+		expect(r.broadcasts.some((b) => b.type === "game_completed")).toBe(true);
+	});
 
-  it('joining the same player twice is a no-op', () => {
-    const r1 = addPlayer(state, { id: 'p1', displayName: 'P1' })
-    const r2 = addPlayer(r1.state, { id: 'p1', displayName: 'P1' })
-    expect(Object.keys(r2.state.players)).toHaveLength(2) // host + p1
-    expect(r2.broadcasts).toHaveLength(0)
-  })
-})
+	it("rejects fj wagers < 0 or > score", () => {
+		let s = fjSetup();
+		s = transition(s, { type: "start_final", actorId: "p-host" }).state;
+		expect(() =>
+			transition(s, { type: "fj_wager", actorId: "p1", amount: -1 }),
+		).toThrow(GameError);
+		expect(() =>
+			transition(s, { type: "fj_wager", actorId: "p1", amount: 101 }),
+		).toThrow(GameError);
+		// Non-integer.
+		expect(() =>
+			transition(s, { type: "fj_wager", actorId: "p1", amount: 50.5 }),
+		).toThrow(GameError);
+		// Ineligible player can't wager.
+		expect(() =>
+			transition(s, { type: "fj_wager", actorId: "p2", amount: 0 }),
+		).toThrow(GameError);
+	});
+
+	it("all wagers in → fj_clue_revealed; all answers in → fj_judging with results", () => {
+		let s = fjSetup();
+		s = transition(s, { type: "start_final", actorId: "p-host" }).state;
+		const wagerR = transition(s, {
+			type: "fj_wager",
+			actorId: "p1",
+			amount: 50,
+		});
+		expect(wagerR.state.phase).toBe("fj_answer");
+		expect(wagerR.broadcasts.some((b) => b.type === "fj_clue_revealed")).toBe(
+			true,
+		);
+		expect(wagerR.state.fjClueRevealed).toBe(true);
+
+		const ansR = transition(wagerR.state, {
+			type: "fj_answer",
+			actorId: "p1",
+			text: "guess",
+		});
+		expect(ansR.state.phase).toBe("fj_judging");
+		const judging = ansR.broadcasts.find((b) => b.type === "fj_judging");
+		expect(judging).toBeTruthy();
+		if (judging?.type === "fj_judging") {
+			expect(judging.results).toEqual([
+				{ playerId: "p1", wager: 50, answer: "guess" },
+			]);
+		}
+	});
+
+	it("fj_judge per player; last verdict → completed + fj_done + game_completed", () => {
+		let s = fjSetup();
+		s = transition(s, { type: "start_final", actorId: "p-host" }).state;
+		s = transition(s, { type: "fj_wager", actorId: "p1", amount: 50 }).state;
+		s = transition(s, {
+			type: "fj_answer",
+			actorId: "p1",
+			text: "guess",
+		}).state;
+		expect(s.phase).toBe("fj_judging");
+		const r = transition(s, {
+			type: "fj_judge",
+			actorId: "p-host",
+			playerId: "p1",
+			verdict: "correct",
+		});
+		expect(r.state.phase).toBe("completed");
+		expect(r.state.players["p1"]!.score).toBe(150);
+		expect(r.broadcasts.some((b) => b.type === "fj_done")).toBe(true);
+		expect(r.broadcasts.some((b) => b.type === "game_completed")).toBe(true);
+		expect(
+			r.broadcasts.some(
+				(b) =>
+					b.type === "fj_judged" && b.playerId === "p1" && b.scoreDelta === 50,
+			),
+		).toBe(true);
+	});
+});
+
+describe("lobby join rules", () => {
+	it("can join during lobby and picking, but not during reading", () => {
+		const r1 = addPlayer(state, { id: "p1", displayName: "P1" });
+		expect(r1.state.players["p1"]?.status).toBe("joined");
+		expect(r1.broadcasts[0]?.type).toBe("player_joined");
+
+		const started = transition(r1.state, {
+			type: "start_game",
+			actorId: "p-host",
+		}).state;
+		const r2 = addPlayer(started, { id: "p2", displayName: "P2" });
+		expect(r2.state.players["p2"]).toBeTruthy();
+
+		const opened = transition(r2.state, {
+			type: "select_question",
+			actorId: "p-host",
+			questionRef: "q1",
+		}).state;
+		const reading = transition(opened, {
+			type: "open_question",
+			actorId: "p-host",
+			nowMs: 0,
+		}).state;
+		expect(() => addPlayer(reading, { id: "p3", displayName: "P3" })).toThrow(
+			GameError,
+		);
+	});
+
+	it("joining the same player twice is a no-op", () => {
+		const r1 = addPlayer(state, { id: "p1", displayName: "P1" });
+		const r2 = addPlayer(r1.state, { id: "p1", displayName: "P1" });
+		expect(Object.keys(r2.state.players)).toHaveLength(2); // host + p1
+		expect(r2.broadcasts).toHaveLength(0);
+	});
+});

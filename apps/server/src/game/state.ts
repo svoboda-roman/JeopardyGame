@@ -1,4 +1,4 @@
-import type { GameView, Phase, PlayerView, ServerToClient } from './protocol.ts'
+import type { FinalJeopardyView, GameView, Phase, PlayerView, ServerToClient } from './protocol.ts'
 
 // Read delay between question_open and buzz_open. Defaults match SRS
 // FR-MG2 (3000ms). Per-game overrides land in slice 04.
@@ -8,6 +8,13 @@ export const EARLY_BUZZ_LOCKOUT_MS = 500
 
 export interface GameOptions {
   readDelayMs: number
+  finalEnabled: boolean
+}
+
+export interface InternalFinalQuestion {
+  category: string
+  clue: string
+  answer: string
 }
 
 export interface InternalQuestion {
@@ -57,6 +64,16 @@ export interface GameState {
   currentPickerId: string | null
   /** For Daily Double / Final Jeopardy: amount on the line. */
   currentWager: number | null
+  /** Final Jeopardy data. Null if disabled or quiz has none. */
+  finalQuestion: InternalFinalQuestion | null
+  /** Per-player FJ wager (private until judging). */
+  fjWagers: Record<string, number>
+  /** Per-player FJ answer (private until judging). */
+  fjAnswers: Record<string, string>
+  /** Per-player FJ verdict, set as host judges. */
+  fjJudged: Record<string, 'correct' | 'incorrect' | 'no_answer'>
+  /** True once host clicked Reveal Clue (i.e. all wagers are in or skipped). */
+  fjClueRevealed: boolean
 }
 
 // ───── Result + error helpers ─────
@@ -87,12 +104,16 @@ export function newGame(args: {
   hostId: string
   hostPlayer: { id: string; displayName: string }
   board: InternalBoard
+  finalQuestion?: InternalFinalQuestion | null
   options?: Partial<GameOptions>
 }): GameState {
   return {
     roomCode: args.roomCode,
     hostId: args.hostId,
-    options: { readDelayMs: args.options?.readDelayMs ?? DEFAULT_READ_DELAY_MS },
+    options: {
+      readDelayMs: args.options?.readDelayMs ?? DEFAULT_READ_DELAY_MS,
+      finalEnabled: args.options?.finalEnabled ?? false,
+    },
     phase: 'lobby',
     players: {
       [args.hostPlayer.id]: {
@@ -111,7 +132,31 @@ export function newGame(args: {
     lockedOutOnCurrent: new Set(),
     currentPickerId: null,
     currentWager: null,
+    finalQuestion: args.finalQuestion ?? null,
+    fjWagers: {},
+    fjAnswers: {},
+    fjJudged: {},
+    fjClueRevealed: false,
   }
+}
+
+/** Players eligible to play Final Jeopardy: non-host, joined, score > 0. */
+export function fjEligiblePlayers(state: GameState): InternalPlayer[] {
+  return Object.values(state.players).filter(
+    (p) => !p.isHost && p.status === 'joined' && p.score > 0,
+  )
+}
+
+/**
+ * Are we ready to enter Final Jeopardy from the picking phase? True when
+ * every main board question is closed, FJ is enabled + present, and at
+ * least one player is eligible.
+ */
+function fjAvailable(state: GameState, closed: Set<string>): boolean {
+  const allClosed = Object.values(state.board.questions).length === closed.size
+  if (!allClosed) return false
+  if (!state.finalQuestion || !state.options.finalEnabled) return false
+  return fjEligiblePlayers(state).length > 0
 }
 
 /** Min and max wager bounds for a Daily Double picked by `playerId`. */
@@ -166,6 +211,32 @@ export function projectView(state: GameState): GameView {
     buzzOpensAt: state.buzzOpensAtMs ? new Date(state.buzzOpensAtMs).toISOString() : null,
     currentPlayerId: state.currentPlayerId,
     currentPickerId: state.currentPickerId,
+    finalJeopardy: projectFinal(state),
+  }
+}
+
+function projectFinal(state: GameState): FinalJeopardyView | null {
+  if (!state.finalQuestion) return null
+  // Until FJ is in flight, we still expose the category so the snapshot
+  // has consistent shape; the host uses this to know "FJ exists".
+  return {
+    category: state.finalQuestion.category,
+    clue: state.fjClueRevealed ? state.finalQuestion.clue : null,
+    answer:
+      state.phase === 'fj_judging' || state.phase === 'completed'
+        ? state.finalQuestion.answer
+        : null,
+    wagersSubmitted: Object.keys(state.fjWagers),
+    answersSubmitted: Object.keys(state.fjAnswers),
+    results:
+      state.phase === 'fj_judging' || state.phase === 'completed'
+        ? Object.entries(state.fjJudged).map(([playerId, verdict]) => ({
+            playerId,
+            wager: state.fjWagers[playerId] ?? 0,
+            answer: state.fjAnswers[playerId] ?? '',
+            verdict,
+          }))
+        : [],
   }
 }
 
@@ -228,6 +299,10 @@ export type Intent =
   | { type: 'close_question'; actorId: string }
   | { type: 'set_picker'; actorId: string; playerId: string }
   | { type: 'wager'; actorId: string; amount: number }
+  | { type: 'start_final'; actorId: string }
+  | { type: 'fj_wager'; actorId: string; amount: number }
+  | { type: 'fj_answer'; actorId: string; text: string }
+  | { type: 'fj_judge'; actorId: string; playerId: string; verdict: 'correct' | 'incorrect' | 'no_answer' }
 
 function requireHost(state: GameState, actorId: string) {
   const p = state.players[actorId]
@@ -414,13 +489,14 @@ export function transition(state: GameState, intent: Intent): TransitionResult {
       if (shouldClose) {
         const nextClosed = new Set([...state.closedQuestions, q.ref])
         const allClosed = Object.values(state.board.questions).length === nextClosed.size
+        const fjPending = fjAvailable({ ...state, players: nextPlayers }, nextClosed)
         const nextPicker =
           intent.verdict === 'correct' ? p.id : state.currentPickerId
         const next: GameState = {
           ...state,
           players: nextPlayers,
           closedQuestions: nextClosed,
-          phase: allClosed ? 'completed' : 'picking',
+          phase: allClosed && !fjPending ? 'completed' : 'picking',
           currentQuestionRef: null,
           currentPlayerId: null,
           buzzOpensAtMs: null,
@@ -432,7 +508,7 @@ export function transition(state: GameState, intent: Intent): TransitionResult {
         if (intent.verdict === 'correct' && nextPicker !== state.currentPickerId) {
           broadcasts.push({ type: 'picker_changed', playerId: nextPicker })
         }
-        if (allClosed) broadcasts.push({ type: 'game_completed' })
+        if (allClosed && !fjPending) broadcasts.push({ type: 'game_completed' })
         return ok(next, broadcasts)
       }
 
@@ -454,18 +530,20 @@ export function transition(state: GameState, intent: Intent): TransitionResult {
       const ref = state.currentQuestionRef
       const nextClosed = new Set([...state.closedQuestions, ref])
       const allClosed = Object.values(state.board.questions).length === nextClosed.size
+      const fjPending = fjAvailable(state, nextClosed)
       const next: GameState = {
         ...state,
-        phase: allClosed ? 'completed' : 'picking',
+        phase: allClosed && !fjPending ? 'completed' : 'picking',
         closedQuestions: nextClosed,
         currentQuestionRef: null,
         currentPlayerId: null,
         buzzOpensAtMs: null,
         lockedOutOnCurrent: new Set(),
         currentPickerId: allClosed ? null : state.currentPickerId,
+        currentWager: null,
       }
       const broadcasts: ServerToClient[] = [{ type: 'question_closed', questionRef: ref }]
-      if (allClosed) broadcasts.push({ type: 'game_completed' })
+      if (allClosed && !fjPending) broadcasts.push({ type: 'game_completed' })
       return ok(next, broadcasts)
     }
 
@@ -517,6 +595,143 @@ export function transition(state: GameState, intent: Intent): TransitionResult {
       if (state.currentPickerId === intent.playerId) return ok(state)
       const next: GameState = { ...state, currentPickerId: intent.playerId }
       return ok(next, [{ type: 'picker_changed', playerId: intent.playerId }])
+    }
+
+    case 'start_final': {
+      requireHost(state, intent.actorId)
+      if (state.phase !== 'picking') throw new GameError('invalid_state', 'Not picking')
+      if (!fjAvailable(state, state.closedQuestions)) {
+        throw new GameError('invalid_state', 'Final Jeopardy is not available yet')
+      }
+      const eligible = fjEligiblePlayers(state).map((p) => p.id)
+      const next: GameState = {
+        ...state,
+        phase: 'fj_wager',
+        currentPickerId: null,
+        currentQuestionRef: null,
+        currentPlayerId: null,
+        currentWager: null,
+        fjWagers: {},
+        fjAnswers: {},
+        fjJudged: {},
+        fjClueRevealed: false,
+      }
+      return ok(next, [
+        { type: 'fj_started', category: state.finalQuestion!.category, eligible },
+      ])
+    }
+
+    case 'fj_wager': {
+      if (state.phase !== 'fj_wager') throw new GameError('invalid_state', 'Not collecting wagers')
+      const player = state.players[intent.actorId]
+      if (!player || player.isHost) throw new GameError('forbidden', 'Players only')
+      const eligible = fjEligiblePlayers(state).some((p) => p.id === intent.actorId)
+      if (!eligible) throw new GameError('not_eligible', 'You are not playing Final Jeopardy')
+      if (
+        !Number.isInteger(intent.amount) ||
+        intent.amount < 0 ||
+        intent.amount > player.score
+      ) {
+        throw new GameError(
+          'invalid_wager',
+          `FJ wager must be an integer in [0, ${player.score}]`,
+        )
+      }
+      const wagers = { ...state.fjWagers, [intent.actorId]: intent.amount }
+      const eligibleIds = fjEligiblePlayers(state).map((p) => p.id)
+      const allIn = eligibleIds.every((id) => id in wagers)
+      const next: GameState = {
+        ...state,
+        fjWagers: wagers,
+        phase: allIn ? 'fj_answer' : 'fj_wager',
+        fjClueRevealed: allIn ? true : state.fjClueRevealed,
+      }
+      const broadcasts: ServerToClient[] = [
+        { type: 'fj_wager_submitted', playerId: intent.actorId },
+      ]
+      if (allIn) {
+        broadcasts.push({ type: 'fj_clue_revealed', clue: state.finalQuestion!.clue })
+      }
+      return ok(next, broadcasts)
+    }
+
+    case 'fj_answer': {
+      if (state.phase !== 'fj_answer') throw new GameError('invalid_state', 'Not collecting answers')
+      const player = state.players[intent.actorId]
+      if (!player || player.isHost) throw new GameError('forbidden', 'Players only')
+      const eligible = fjEligiblePlayers(state).some((p) => p.id === intent.actorId)
+      if (!eligible) throw new GameError('not_eligible', 'You are not playing Final Jeopardy')
+      if (typeof intent.text !== 'string' || intent.text.length > 200) {
+        throw new GameError('validation_error', 'Answer too long')
+      }
+      const answers = { ...state.fjAnswers, [intent.actorId]: intent.text }
+      const eligibleIds = fjEligiblePlayers(state).map((p) => p.id)
+      const allIn = eligibleIds.every((id) => id in answers)
+      const next: GameState = {
+        ...state,
+        fjAnswers: answers,
+        phase: allIn ? 'fj_judging' : 'fj_answer',
+      }
+      const broadcasts: ServerToClient[] = [
+        { type: 'fj_answer_submitted', playerId: intent.actorId },
+      ]
+      if (allIn) {
+        broadcasts.push({
+          type: 'fj_judging',
+          results: eligibleIds.map((id) => ({
+            playerId: id,
+            wager: next.fjWagers[id] ?? 0,
+            answer: next.fjAnswers[id] ?? '',
+          })),
+        })
+      }
+      return ok(next, broadcasts)
+    }
+
+    case 'fj_judge': {
+      requireHost(state, intent.actorId)
+      if (state.phase !== 'fj_judging') throw new GameError('invalid_state', 'Not judging FJ')
+      if (!(intent.playerId in state.fjAnswers))
+        throw new GameError('not_found', 'No FJ answer for that player')
+      if (intent.playerId in state.fjJudged)
+        throw new GameError('invalid_state', 'Already judged')
+      const wager = state.fjWagers[intent.playerId] ?? 0
+      const player = state.players[intent.playerId]
+      if (!player) throw new GameError('not_found', 'Unknown player')
+      const delta =
+        intent.verdict === 'correct'
+          ? wager
+          : intent.verdict === 'incorrect'
+            ? -wager
+            : 0
+      const newScore = player.score + delta
+      const nextPlayers = {
+        ...state.players,
+        [intent.playerId]: { ...player, score: newScore },
+      }
+      const nextJudged = { ...state.fjJudged, [intent.playerId]: intent.verdict }
+      const eligibleIds = fjEligiblePlayers(state).map((p) => p.id)
+      const allJudged = eligibleIds.every((id) => id in nextJudged)
+      const next: GameState = {
+        ...state,
+        players: nextPlayers,
+        fjJudged: nextJudged,
+        phase: allJudged ? 'completed' : 'fj_judging',
+      }
+      const broadcasts: ServerToClient[] = [
+        {
+          type: 'fj_judged',
+          playerId: intent.playerId,
+          verdict: intent.verdict,
+          scoreDelta: delta,
+          newScore,
+        },
+      ]
+      if (allJudged) {
+        broadcasts.push({ type: 'fj_done' })
+        broadcasts.push({ type: 'game_completed' })
+      }
+      return ok(next, broadcasts)
     }
   }
 }

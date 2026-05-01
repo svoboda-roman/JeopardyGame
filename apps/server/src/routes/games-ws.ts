@@ -89,6 +89,19 @@ function intentFor(playerId: string, msg: ClientToServer): Intent | null {
       return { type: 'set_picker', actorId: playerId, playerId: msg.playerId }
     case 'wager':
       return { type: 'wager', actorId: playerId, amount: msg.amount }
+    case 'start_final':
+      return { type: 'start_final', actorId: playerId }
+    case 'fj_wager':
+      return { type: 'fj_wager', actorId: playerId, amount: msg.amount }
+    case 'fj_answer':
+      return { type: 'fj_answer', actorId: playerId, text: msg.text }
+    case 'fj_judge':
+      return {
+        type: 'fj_judge',
+        actorId: playerId,
+        playerId: msg.playerId,
+        verdict: msg.verdict,
+      }
     case 'leave':
     case 'ping':
       return null
