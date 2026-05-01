@@ -1,31 +1,31 @@
 {
-  "name": "server",
-  "private": true,
-  "type": "module",
-  "scripts": {
-    "dev": "bun --hot src/index.ts",
-    "start": "bun src/index.ts",
-    "test": "bun test",
-    "db:generate": "drizzle-kit generate",
-    "db:migrate": "drizzle-kit migrate",
-    "db:studio": "drizzle-kit studio"
-  },
-  "devDependencies": {
-    "@types/bun": "latest",
-    "@types/nodemailer": "^8.0.0",
-    "@types/pg": "^8.20.0",
-    "drizzle-kit": "^0.31.10",
-    "tsx": "^4.21.0"
-  },
-  "dependencies": {
-    "@elysiajs/cors": "^1.4.2",
-    "@elysiajs/openapi": "^1.4.15",
-    "better-auth": "^1.6.9",
-    "dotenv": "^17.4.2",
-    "drizzle-orm": "^0.45.2",
-    "elysia": "^1.4.28",
-    "nodemailer": "^8.0.7",
-    "pg": "^8.20.0",
-    "resend": "^6.12.2"
-  }
+	"name": "server",
+	"private": true,
+	"type": "module",
+	"scripts": {
+		"dev": "bun --hot src/index.ts",
+		"start": "bun src/index.ts",
+		"test": "bun test",
+		"db:generate": "drizzle-kit generate",
+		"db:migrate": "drizzle-kit migrate",
+		"db:studio": "drizzle-kit studio"
+	},
+	"devDependencies": {
+		"@types/bun": "latest",
+		"@types/nodemailer": "^8.0.0",
+		"@types/pg": "^8.20.0",
+		"drizzle-kit": "^0.31.10",
+		"tsx": "^4.21.0"
+	},
+	"dependencies": {
+		"@elysiajs/cors": "^1.4.2",
+		"@elysiajs/openapi": "^1.4.15",
+		"better-auth": "^1.6.9",
+		"dotenv": "^17.4.2",
+		"drizzle-orm": "^0.45.2",
+		"elysia": "^1.4.28",
+		"nodemailer": "^8.0.7",
+		"pg": "^8.20.0",
+		"resend": "^6.12.2"
+	}
 }

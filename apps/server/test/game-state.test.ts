@@ -164,7 +164,7 @@ describe("one-question buzz cycle", () => {
 			verdict: "correct",
 		});
 		expect(r.state.phase).toBe("picking");
-		expect(r.state.players["p1"]!.score).toBe(100);
+		expect(r.state.players.p1?.score).toBe(100);
 		expect(r.state.closedQuestions.has("q1")).toBe(true);
 		expect(r.state.currentPickerId).toBe("p1");
 		const judged = r.broadcasts.find((b) => b.type === "judged");
@@ -193,7 +193,7 @@ describe("one-question buzz cycle", () => {
 			actorId: "p-host",
 			verdict: "incorrect",
 		});
-		expect(r.state.players["p1"]!.score).toBe(-100);
+		expect(r.state.players.p1?.score).toBe(-100);
 		expect(r.state.phase).toBe("buzz_open");
 		expect(r.state.closedQuestions.has("q1")).toBe(false);
 		expect(r.state.lockedOutOnCurrent.has("p1")).toBe(true);
@@ -310,7 +310,7 @@ describe("one-question buzz cycle", () => {
 describe("Daily Double", () => {
 	function ddBoard(): InternalBoard {
 		const tiny = tinyBoard();
-		tiny.questions["q1"]!.isDailyDouble = true;
+		tiny.questions.q1!.isDailyDouble = true;
 		return tiny;
 	}
 
@@ -420,7 +420,7 @@ describe("Daily Double", () => {
 			actorId: "p-host",
 			verdict: "correct",
 		});
-		expect(judgedR.state.players["p1"]!.score).toBe(150);
+		expect(judgedR.state.players.p1?.score).toBe(150);
 		expect(judgedR.state.closedQuestions.has("q1")).toBe(true);
 		expect(judgedR.state.phase).toBe("picking");
 		expect(judgedR.state.currentPickerId).toBe("p1");
@@ -448,7 +448,7 @@ describe("Daily Double", () => {
 			actorId: "p-host",
 			verdict: "no_answer",
 		});
-		expect(r.state.players["p1"]!.score).toBe(-50);
+		expect(r.state.players.p1?.score).toBe(-50);
 		expect(r.state.closedQuestions.has("q1")).toBe(true);
 	});
 
@@ -575,8 +575,8 @@ describe("Final Jeopardy", () => {
 	it("after all main questions, start_final → fj_wager; fj_started lists only eligible (score > 0)", () => {
 		const s = fjSetup();
 		expect(s.phase).toBe("picking");
-		expect(s.players["p1"]!.score).toBe(100);
-		expect(s.players["p2"]!.score).toBe(0);
+		expect(s.players.p1?.score).toBe(100);
+		expect(s.players.p2?.score).toBe(0);
 		const r = transition(s, { type: "start_final", actorId: "p-host" });
 		expect(r.state.phase).toBe("fj_wager");
 		const started = r.broadcasts.find((b) => b.type === "fj_started");
@@ -678,7 +678,7 @@ describe("Final Jeopardy", () => {
 			verdict: "correct",
 		});
 		expect(r.state.phase).toBe("completed");
-		expect(r.state.players["p1"]!.score).toBe(150);
+		expect(r.state.players.p1?.score).toBe(150);
 		expect(r.broadcasts.some((b) => b.type === "fj_done")).toBe(true);
 		expect(r.broadcasts.some((b) => b.type === "game_completed")).toBe(true);
 		expect(
@@ -693,7 +693,7 @@ describe("Final Jeopardy", () => {
 describe("lobby join rules", () => {
 	it("can join during lobby and picking, but not during reading", () => {
 		const r1 = addPlayer(state, { id: "p1", displayName: "P1" });
-		expect(r1.state.players["p1"]?.status).toBe("joined");
+		expect(r1.state.players.p1?.status).toBe("joined");
 		expect(r1.broadcasts[0]?.type).toBe("player_joined");
 
 		const started = transition(r1.state, {
@@ -701,7 +701,7 @@ describe("lobby join rules", () => {
 			actorId: "p-host",
 		}).state;
 		const r2 = addPlayer(started, { id: "p2", displayName: "P2" });
-		expect(r2.state.players["p2"]).toBeTruthy();
+		expect(r2.state.players.p2).toBeTruthy();
 
 		const opened = transition(r2.state, {
 			type: "select_question",

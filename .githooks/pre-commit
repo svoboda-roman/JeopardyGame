@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+set -e
+
+echo "→ biome check"
+bunx biome check
+
+echo "→ tsc (server)"
+(cd apps/server && bunx tsc --noEmit)
+
+echo "→ tsc (web)"
+(cd apps/web && bunx tsc --noEmit)

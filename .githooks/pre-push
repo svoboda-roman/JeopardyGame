@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+set -e
+
+echo "→ server tests"
+(cd apps/server && bun test)
+
+echo "→ web tests"
+(cd apps/web && bun run test)

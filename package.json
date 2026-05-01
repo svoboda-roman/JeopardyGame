@@ -1,7 +1,12 @@
 {
 	"name": "jeopardy-game",
 	"private": true,
-	"workspaces": ["apps/*"],
+	"workspaces": [
+		"apps/*"
+	],
+	"scripts": {
+		"prepare": "git config core.hooksPath .githooks"
+	},
 	"devDependencies": {
 		"@biomejs/biome": "2.4.13"
 	},

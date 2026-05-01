@@ -181,16 +181,17 @@ export async function getOrLoadRoom(
 			.from(gameTable)
 			.where(eq(gameTable.roomCode, roomCode))
 			.limit(1);
-		if (games.length === 0) return null;
-		const g = games[0]!;
+		const g = games[0];
+		if (!g) return null;
 
 		const snap = await db
 			.select()
 			.from(gameSnapshotTable)
 			.where(eq(gameSnapshotTable.gameId, g.id))
 			.limit(1);
-		if (snap.length === 0) return null;
-		const { board, finalQuestion } = readSnapshot(snap[0]!.quiz);
+		const snapRow = snap[0];
+		if (!snapRow) return null;
+		const { board, finalQuestion } = readSnapshot(snapRow.quiz);
 
 		const players = await db
 			.select()

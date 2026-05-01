@@ -91,11 +91,12 @@ async function snapshotQuiz(
 			.from(finalQuestionTable)
 			.where(eq(finalQuestionTable.quizId, quizId))
 			.limit(1);
-		if (fq.length > 0) {
+		const row = fq[0];
+		if (row) {
 			finalQuestion = {
-				category: fq[0]!.category,
-				clue: fq[0]!.clue,
-				answer: fq[0]!.answer,
+				category: row.category,
+				clue: row.clue,
+				answer: row.answer,
 			};
 		}
 	}
@@ -226,8 +227,8 @@ export const games = new Elysia({ tags: ["games"] })
 			.from(gameTable)
 			.where(eq(gameTable.roomCode, params.roomCode.toUpperCase()))
 			.limit(1);
-		if (rows.length === 0) notFound("Game not found");
-		const g = rows[0]!;
+		const g = rows[0];
+		if (!g) notFound("Game not found");
 		return {
 			game: {
 				id: g.id,
@@ -247,8 +248,8 @@ export const games = new Elysia({ tags: ["games"] })
 				.from(gameTable)
 				.where(eq(gameTable.roomCode, code))
 				.limit(1);
-			if (games.length === 0) notFound("Game not found");
-			const g = games[0]!;
+			const g = games[0];
+			if (!g) notFound("Game not found");
 			if (
 				g.status !== "lobby" &&
 				g.status !== "active" &&
@@ -280,22 +281,23 @@ export const games = new Elysia({ tags: ["games"] })
 					.from(gamePlayerTable)
 					.where(and(eq(gamePlayerTable.gameId, g.id), candidate))
 					.limit(1);
-				if (existing.length > 0) {
+				const existingRow = existing[0];
+				if (existingRow) {
 					// Idempotent rejoin.
 					await db
 						.update(gamePlayerTable)
 						.set({ status: "joined", leftAt: null })
-						.where(eq(gamePlayerTable.id, existing[0]!.id));
-					if (!user && existing[0]!.guestToken) {
+						.where(eq(gamePlayerTable.id, existingRow.id));
+					if (!user && existingRow.guestToken) {
 						cookie[`guest_token_${code}`]?.set({
-							value: existing[0]!.guestToken,
+							value: existingRow.guestToken,
 							httpOnly: true,
 							sameSite: "lax",
 							secure: process.env.NODE_ENV === "production",
 							path: "/",
 						});
 					}
-					return { playerId: existing[0]!.id };
+					return { playerId: existingRow.id };
 				}
 			}
 
