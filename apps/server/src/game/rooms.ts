@@ -1,7 +1,8 @@
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { db } from "../db/client.ts";
 import {
 	gamePlayer as gamePlayerTable,
+	gameResult as gameResultTable,
 	gameSnapshot as gameSnapshotTable,
 	game as gameTable,
 } from "../db/schema.ts";
@@ -32,13 +33,22 @@ interface SocketEntry {
 	playerId: string;
 }
 
+export interface RankingEntry {
+	playerId: string;
+	displayName: string;
+	score: number;
+	rank: number;
+}
+
 export class RoomDriver {
 	private timer: ReturnType<typeof setTimeout> | null = null;
 	private sockets = new Map<string, SocketEntry>();
+	private completionPersisted = false;
 
 	constructor(
 		public roomCode: string,
 		private state: GameState,
+		private gameId: string,
 	) {}
 
 	/** Snapshot for a freshly connected client (sent only to that socket). */
@@ -98,6 +108,7 @@ export class RoomDriver {
 		this.state = r.state;
 		this.broadcast(r.broadcasts);
 		this.scheduleTick();
+		this.maybePersistCompletion();
 	}
 
 	/** Called externally when wall-clock advances, in case our timer was missed. */
@@ -106,7 +117,43 @@ export class RoomDriver {
 		if (r.state !== this.state) {
 			this.state = r.state;
 			this.broadcast(r.broadcasts);
+			this.maybePersistCompletion();
 		}
+	}
+
+	/**
+	 * When the game enters `completed`, write `game.endedAt` and the
+	 * final ranking row. Idempotent across processes via primary-key
+	 * conflict on `game_result.game_id`. Awaitable for tests.
+	 */
+	persistCompletion(): Promise<void> {
+		if (this.state.phase !== "completed") return Promise.resolve();
+		if (this.completionPersisted) return Promise.resolve();
+		this.completionPersisted = true;
+		const ranking = computeRanking(this.state);
+		const gameId = this.gameId;
+		return (async () => {
+			await db.transaction(async (tx) => {
+				await tx
+					.update(gameTable)
+					.set({ endedAt: sql`now()` })
+					.where(
+						sql`${gameTable.id} = ${gameId} AND ${gameTable.endedAt} IS NULL`,
+					);
+				await tx
+					.insert(gameResultTable)
+					.values({ gameId, ranking })
+					.onConflictDoNothing();
+			});
+		})();
+	}
+
+	private maybePersistCompletion() {
+		// Fire-and-forget; failures are logged but don't break the room.
+		this.persistCompletion().catch((err) => {
+			console.error(`[room ${this.roomCode}] persistCompletion failed`, err);
+			this.completionPersisted = false;
+		});
 	}
 
 	/** Stop pending timers — used when the room is evicted. */
@@ -162,6 +209,27 @@ function readSnapshot(raw: unknown): {
 		return { board: s.board, finalQuestion: s.finalQuestion ?? null };
 	}
 	return { board: v as InternalBoard, finalQuestion: null };
+}
+
+function computeRanking(state: GameState): RankingEntry[] {
+	const players = Object.values(state.players)
+		.filter((p) => !p.isHost)
+		.sort(
+			(a, b) => b.score - a.score || a.displayName.localeCompare(b.displayName),
+		);
+	let lastScore: number | null = null;
+	let lastRank = 0;
+	return players.map((p, i) => {
+		const rank = lastScore === p.score ? lastRank : i + 1;
+		lastScore = p.score;
+		lastRank = rank;
+		return {
+			playerId: p.id,
+			displayName: p.displayName,
+			score: p.score,
+			rank,
+		};
+	});
 }
 
 const rooms = new Map<string, RoomDriver>();
@@ -228,7 +296,7 @@ export async function getOrLoadRoom(
 			}
 		}
 
-		const driver = new RoomDriver(g.roomCode, state);
+		const driver = new RoomDriver(g.roomCode, state, g.id);
 		rooms.set(g.roomCode, driver);
 		return driver;
 	})();
