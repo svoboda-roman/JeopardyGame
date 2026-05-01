@@ -44,7 +44,7 @@ function LoginPage() {
 
 	return (
 		<form onSubmit={onSubmit} className="space-y-4">
-			<h1 className="text-2xl font-bold">Log in</h1>
+			<h1 className="text-2xl font-bold font-heading font-heading">Log in</h1>
 			<div className="space-y-2">
 				<label className="text-sm" htmlFor="email">
 					Email
@@ -54,7 +54,7 @@ function LoginPage() {
 					type="email"
 					required
 					autoComplete="email"
-					className="w-full rounded-md border bg-background px-3 py-2"
+					className="w-full rounded-md border bg-input px-3 py-2 focus:outline-none focus:border-primary focus:ring-3 focus:ring-ring/40"
 					value={email}
 					onChange={(e) => setEmail(e.target.value)}
 				/>
@@ -68,7 +68,7 @@ function LoginPage() {
 					type="password"
 					required
 					autoComplete="current-password"
-					className="w-full rounded-md border bg-background px-3 py-2"
+					className="w-full rounded-md border bg-input px-3 py-2 focus:outline-none focus:border-primary focus:ring-3 focus:ring-ring/40"
 					value={password}
 					onChange={(e) => setPassword(e.target.value)}
 				/>

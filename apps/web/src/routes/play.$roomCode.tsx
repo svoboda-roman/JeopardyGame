@@ -26,19 +26,25 @@ function PlayPage() {
 		? game.players.find((p) => p.id === game.currentPlayerId)
 		: null;
 
+	const canBuzz = game.phase === "buzz_open" || game.phase === "reading";
+
 	return (
 		<div className="min-h-[100dvh] flex flex-col p-4 gap-4 max-w-md mx-auto w-full">
 			<header className="flex items-center justify-between">
-				<span className="text-xs text-muted-foreground">
-					Room <span className="font-mono">{game.roomCode}</span>
+				<span className="text-xs uppercase tracking-wider text-muted-foreground">
+					Room{" "}
+					<span className="room-code text-foreground ml-1">
+						{game.roomCode}
+					</span>
 				</span>
 				<span className="text-sm">
-					You: <strong>{me?.displayName ?? "—"}</strong> · ${me?.score ?? 0}
+					You: <strong>{me?.displayName ?? "—"}</strong>{" "}
+					<span className="score ml-1">${me?.score ?? 0}</span>
 				</span>
 			</header>
 
-			<section className="border rounded-2xl p-3 space-y-2">
-				<h2 className="text-xs uppercase tracking-wider text-muted-foreground">
+			<section className="border rounded-2xl p-3 space-y-2 bg-card">
+				<h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
 					Players
 				</h2>
 				<ul className="grid grid-cols-2 gap-2 text-sm">
@@ -47,16 +53,16 @@ function PlayPage() {
 						.map((p) => (
 							<li
 								key={p.id}
-								className={`rounded border px-2 py-1 ${
-									p.id === game.currentPlayerId ? "border-primary" : ""
+								className={`rounded-md border px-2 py-1 bg-input transition-colors ${
+									p.id === game.currentPlayerId
+										? "border-primary glow-primary"
+										: ""
 								}`}
 							>
 								<span className="block font-medium truncate">
 									{p.displayName}
 								</span>
-								<span className="text-xs text-muted-foreground">
-									${p.score}
-								</span>
+								<span className="score text-xs">${p.score}</span>
 							</li>
 						))}
 				</ul>
@@ -66,15 +72,18 @@ function PlayPage() {
 				game.phase === "buzz_open" ||
 				game.phase === "buzzed") &&
 				game.currentQuestion && (
-					<section className="border rounded-2xl p-4 space-y-2">
-						<p className="text-xs uppercase tracking-wider text-muted-foreground">
-							${game.currentQuestion.pointValue}
+					<section className="border rounded-2xl p-4 space-y-2 bg-card">
+						<p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+							<span className="score">${game.currentQuestion.pointValue}</span>
 							{game.currentQuestion.isDailyDouble && " · Daily Double"}
 						</p>
 						<p className="text-lg leading-snug">{game.currentQuestion.clue}</p>
 						{buzzedPlayer && (
 							<p className="text-sm text-muted-foreground">
-								{buzzedPlayer.displayName} buzzed in.
+								<strong className="text-foreground">
+									{buzzedPlayer.displayName}
+								</strong>{" "}
+								buzzed in.
 							</p>
 						)}
 					</section>
@@ -100,8 +109,8 @@ function PlayPage() {
 				type="button"
 				aria-label="Buzz"
 				onClick={() => send({ type: "buzz" })}
-				disabled={game.phase !== "buzz_open" && game.phase !== "reading"}
-				className="w-full rounded-3xl border-4 border-primary bg-primary text-primary-foreground font-bold text-2xl py-12 active:scale-[0.97] transition-transform disabled:opacity-30"
+				disabled={!canBuzz}
+				className="buzz w-full rounded-3xl font-heading font-bold text-3xl tracking-wider py-14"
 			>
 				BUZZ
 			</button>

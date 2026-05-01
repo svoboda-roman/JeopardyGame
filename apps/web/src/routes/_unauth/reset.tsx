@@ -43,7 +43,9 @@ function ResetPage() {
 
 	return (
 		<form onSubmit={onSubmit} className="space-y-4">
-			<h1 className="text-2xl font-bold">Set a new password</h1>
+			<h1 className="text-2xl font-bold font-heading font-heading">
+				Set a new password
+			</h1>
 			<div className="space-y-2">
 				<label className="text-sm" htmlFor="password">
 					New password
@@ -54,7 +56,7 @@ function ResetPage() {
 					required
 					minLength={12}
 					autoComplete="new-password"
-					className="w-full rounded-md border bg-background px-3 py-2"
+					className="w-full rounded-md border bg-input px-3 py-2 focus:outline-none focus:border-primary focus:ring-3 focus:ring-ring/40"
 					value={password}
 					onChange={(e) => setPassword(e.target.value)}
 				/>

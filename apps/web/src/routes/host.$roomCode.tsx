@@ -25,37 +25,42 @@ function HostPage() {
 		: null;
 
 	return (
-		<div className="min-h-screen p-4 max-w-6xl mx-auto space-y-4">
-			<header className="flex flex-wrap items-center gap-3 justify-between">
+		<div className="min-h-[100dvh] p-4 max-w-6xl mx-auto space-y-4">
+			<header className="flex flex-wrap items-center gap-4 justify-between">
 				<div>
-					<p className="text-xs uppercase tracking-wider text-muted-foreground">
+					<p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
 						Room
 					</p>
-					<p className="font-mono text-2xl">{game.roomCode}</p>
+					<p className="room-code text-3xl wordmark-accent">{game.roomCode}</p>
 				</div>
-				<p className="text-sm">
-					Phase: <span className="font-mono">{game.phase}</span>
+				<p className="text-sm text-muted-foreground">
+					Phase: <span className="text-foreground font-mono">{game.phase}</span>
 				</p>
 				{game.phase === "lobby" && (
-					<Button onClick={() => send({ type: "start_game" })}>
+					<Button size="lg" onClick={() => send({ type: "start_game" })}>
 						Start game
 					</Button>
 				)}
 			</header>
 
-			<section className="border rounded-2xl p-3">
-				<h2 className="text-xs uppercase tracking-wider text-muted-foreground mb-2">
+			<section className="border rounded-2xl p-3 bg-card">
+				<h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">
 					Players
 				</h2>
 				<ul className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2 text-sm">
 					{game.players
 						.filter((p) => !p.isHost)
 						.map((p) => (
-							<li key={p.id} className="rounded border px-2 py-1">
+							<li
+								key={p.id}
+								className={`rounded-md border px-2 py-1 bg-input transition-colors ${
+									p.id === game.currentPlayerId
+										? "border-primary glow-primary"
+										: ""
+								}`}
+							>
 								<span className="block truncate">{p.displayName}</span>
-								<span className="text-xs text-muted-foreground">
-									${p.score}
-								</span>
+								<span className="score text-xs">${p.score}</span>
 							</li>
 						))}
 				</ul>
@@ -64,7 +69,7 @@ function HostPage() {
 			<section className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
 				{game.board.map((cat) => (
 					<div key={cat.ref} className="space-y-2">
-						<div className="text-center font-semibold text-sm py-2 border rounded-md">
+						<div className="text-center font-heading font-bold text-xs sm:text-sm py-3 border rounded-md bg-card uppercase tracking-wide">
 							{cat.title}
 						</div>
 						{cat.questions.map((q) => (
@@ -76,10 +81,10 @@ function HostPage() {
 									send({ type: "select_question", questionRef: q.ref });
 									send({ type: "open_question" });
 								}}
-								className={`w-full rounded-md border py-3 font-bold ${
+								className={`w-full rounded-md border py-4 font-mono font-bold text-lg bg-card transition-all ${
 									q.closed
-										? "opacity-30 line-through"
-										: "hover:bg-primary hover:text-primary-foreground"
+										? "opacity-20 line-through text-muted-foreground"
+										: "score hover:bg-primary hover:text-primary-foreground hover:border-primary hover:shadow-[0_0_18px_var(--primary-glow)]"
 								} disabled:cursor-not-allowed`}
 							>
 								${q.pointValue}
@@ -93,10 +98,14 @@ function HostPage() {
 				game.phase === "buzz_open" ||
 				game.phase === "buzzed") &&
 				game.currentQuestion && (
-					<section className="border rounded-2xl p-4 space-y-3">
-						<p className="text-xs uppercase tracking-wider text-muted-foreground">
-							${game.currentQuestion.pointValue}
-							{game.currentQuestion.isDailyDouble && " · Daily Double"}
+					<section className="border rounded-2xl p-5 space-y-3 bg-card glow-primary">
+						<p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+							<span className="score">${game.currentQuestion.pointValue}</span>
+							{game.currentQuestion.isDailyDouble && (
+								<span className="ml-2 text-[color:var(--gold)]">
+									· Daily Double
+								</span>
+							)}
 						</p>
 						<p className="text-xl leading-snug">{game.currentQuestion.clue}</p>
 						<p className="text-sm">
@@ -144,18 +153,22 @@ function HostPage() {
 				)}
 
 			{game.phase === "completed" && (
-				<section className="border rounded-2xl p-6 text-center space-y-2">
-					<h2 className="text-2xl font-bold">Game complete</h2>
+				<section className="border rounded-2xl p-6 text-center space-y-3 bg-card glow-primary">
+					<h2 className="text-3xl font-heading font-bold">Game complete</h2>
 					<ol className="space-y-1 max-w-sm mx-auto">
 						{[...game.players]
 							.filter((p) => !p.isHost)
 							.sort((a, b) => b.score - a.score)
 							.map((p, i) => (
-								<li key={p.id} className="flex justify-between border-b py-1">
+								<li
+									key={p.id}
+									className="flex justify-between border-b border-border py-2"
+								>
 									<span>
-										{i + 1}. {p.displayName}
+										<span className="text-muted-foreground mr-2">{i + 1}.</span>
+										{p.displayName}
 									</span>
-									<span className="font-mono">${p.score}</span>
+									<span className="score">${p.score}</span>
 								</li>
 							))}
 					</ol>

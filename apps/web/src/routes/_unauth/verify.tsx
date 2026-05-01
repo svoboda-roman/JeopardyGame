@@ -34,7 +34,9 @@ function VerifyPage() {
 			{status === "pending" && <p>Verifying your email…</p>}
 			{status === "ok" && (
 				<>
-					<h1 className="text-2xl font-bold">Email verified</h1>
+					<h1 className="text-2xl font-bold font-heading font-heading">
+						Email verified
+					</h1>
 					<p className="text-sm">You can now host games.</p>
 					<Link to="/me" className="underline text-sm">
 						Go to your profile
@@ -43,7 +45,9 @@ function VerifyPage() {
 			)}
 			{status === "error" && (
 				<>
-					<h1 className="text-2xl font-bold">Verification failed</h1>
+					<h1 className="text-2xl font-bold font-heading font-heading">
+						Verification failed
+					</h1>
 					<p className="text-sm">The link is invalid or has expired.</p>
 					<Link to="/login" className="underline text-sm">
 						Back to log in

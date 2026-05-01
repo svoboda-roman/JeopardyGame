@@ -63,14 +63,19 @@ function JoinPage() {
 	}
 
 	return (
-		<div className="min-h-screen flex items-center justify-center px-4">
+		<div className="min-h-[100dvh] flex items-center justify-center px-4">
 			<form
 				onSubmit={onSubmit}
-				className="w-full max-w-sm border rounded-2xl p-6 space-y-4 bg-card"
+				className="w-full max-w-sm border rounded-2xl p-7 space-y-5 bg-card glow-primary"
 			>
-				<h1 className="text-2xl font-bold text-center">Join a game</h1>
+				<h1 className="text-2xl font-bold text-center font-heading">
+					Join a game
+				</h1>
 				<div className="space-y-2">
-					<label className="text-sm" htmlFor="code">
+					<label
+						className="text-xs font-semibold uppercase tracking-wider text-muted-foreground"
+						htmlFor="code"
+					>
 						Room code
 					</label>
 					<input
@@ -81,12 +86,16 @@ function JoinPage() {
 						maxLength={6}
 						value={code}
 						onChange={(e) => setCode(e.target.value.toUpperCase())}
-						className="w-full rounded-md border bg-background px-3 py-2 uppercase text-center tracking-[0.4em] font-mono text-lg"
+						inputMode="text"
+						className="w-full rounded-md border bg-input px-3 py-3 room-code text-xl text-center text-foreground focus:outline-none focus:border-primary focus:ring-3 focus:ring-ring/40"
 						autoCapitalize="characters"
 					/>
 				</div>
 				<div className="space-y-2">
-					<label className="text-sm" htmlFor="name">
+					<label
+						className="text-xs font-semibold uppercase tracking-wider text-muted-foreground"
+						htmlFor="name"
+					>
 						Display name
 					</label>
 					<input
@@ -96,13 +105,14 @@ function JoinPage() {
 						maxLength={32}
 						value={name}
 						onChange={(e) => setName(e.target.value)}
-						className="w-full rounded-md border bg-background px-3 py-2"
+						className="w-full rounded-md border bg-input px-3 py-2 focus:outline-none focus:border-primary focus:ring-3 focus:ring-ring/40"
 					/>
 				</div>
 				{error && <p className="text-sm text-destructive">{error}</p>}
 				<Button
 					type="submit"
 					className="w-full"
+					size="lg"
 					disabled={submitting || !code || !name}
 				>
 					{submitting ? "Joining…" : "Join game"}

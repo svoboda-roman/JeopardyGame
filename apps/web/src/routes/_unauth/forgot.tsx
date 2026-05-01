@@ -35,7 +35,9 @@ function ForgotPage() {
 	if (sent) {
 		return (
 			<div className="space-y-3">
-				<h1 className="text-2xl font-bold">Check your email</h1>
+				<h1 className="text-2xl font-bold font-heading font-heading">
+					Check your email
+				</h1>
 				<p className="text-sm text-muted-foreground">
 					If an account exists for that address, we've sent a reset link.
 				</p>
@@ -48,7 +50,9 @@ function ForgotPage() {
 
 	return (
 		<form onSubmit={onSubmit} className="space-y-4">
-			<h1 className="text-2xl font-bold">Reset password</h1>
+			<h1 className="text-2xl font-bold font-heading font-heading">
+				Reset password
+			</h1>
 			<div className="space-y-2">
 				<label className="text-sm" htmlFor="email">
 					Email
@@ -57,7 +61,7 @@ function ForgotPage() {
 					id="email"
 					type="email"
 					required
-					className="w-full rounded-md border bg-background px-3 py-2"
+					className="w-full rounded-md border bg-input px-3 py-2 focus:outline-none focus:border-primary focus:ring-3 focus:ring-ring/40"
 					value={email}
 					onChange={(e) => setEmail(e.target.value)}
 				/>
