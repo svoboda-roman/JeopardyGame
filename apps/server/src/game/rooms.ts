@@ -136,7 +136,7 @@ export class RoomDriver {
 			await db.transaction(async (tx) => {
 				await tx
 					.update(gameTable)
-					.set({ endedAt: sql`now()` })
+					.set({ status: "completed", endedAt: sql`now()` })
 					.where(
 						sql`${gameTable.id} = ${gameId} AND ${gameTable.endedAt} IS NULL`,
 					);
@@ -165,6 +165,12 @@ export class RoomDriver {
 	// For tests / inspection only.
 	getState(): GameState {
 		return this.state;
+	}
+
+	/** Computed ranking if the game is `completed`, else null. */
+	currentRanking(): RankingEntry[] | null {
+		if (this.state.phase !== "completed") return null;
+		return computeRanking(this.state);
 	}
 
 	private scheduleTick() {
@@ -308,6 +314,11 @@ export async function getOrLoadRoom(
 	} finally {
 		inflightLoads.delete(roomCode);
 	}
+}
+
+/** Peek the in-memory room without triggering a load from DB. */
+export function peekRoom(roomCode: string): RoomDriver | null {
+	return rooms.get(roomCode) ?? null;
 }
 
 export function evictRoom(roomCode: string) {

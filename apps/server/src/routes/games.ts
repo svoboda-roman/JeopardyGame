@@ -1,10 +1,11 @@
-import { and, asc, count, eq } from "drizzle-orm";
+import { and, asc, count, desc, eq, or } from "drizzle-orm";
 import { Elysia, t } from "elysia";
 import { db } from "../db/client.ts";
 import {
 	category as categoryTable,
 	finalQuestion as finalQuestionTable,
 	gamePlayer as gamePlayerTable,
+	gameResult as gameResultTable,
 	gameSnapshot as gameSnapshotTable,
 	game as gameTable,
 	question as questionTable,
@@ -12,12 +13,12 @@ import {
 	userProfile as userProfileTable,
 	user as userTable,
 } from "../db/schema.ts";
+import { peekRoom, type RankingEntry } from "../game/rooms.ts";
 import type {
 	InternalBoard,
 	InternalFinalQuestion,
 	InternalQuestion,
 } from "../game/state.ts";
-
 import { HttpError, notFound, requireUser } from "../lib/auth-helpers.ts";
 import { generateRoomCode } from "../lib/room-code.ts";
 
@@ -217,6 +218,81 @@ export const games = new Elysia({ tags: ["games"] })
 			}),
 		},
 	)
+
+	// History of games the caller hosted or played in. Declared before the
+	// parametric `/games/:roomCode` route so the literal path matches first.
+	.get("/games/history", async ({ request }) => {
+		const u = await requireUser(request);
+		const rows = await db
+			.selectDistinct({
+				id: gameTable.id,
+				roomCode: gameTable.roomCode,
+				status: gameTable.status,
+				hostId: gameTable.hostId,
+				createdAt: gameTable.createdAt,
+				startedAt: gameTable.startedAt,
+				endedAt: gameTable.endedAt,
+				quizId: gameTable.quizId,
+			})
+			.from(gameTable)
+			.leftJoin(gamePlayerTable, eq(gamePlayerTable.gameId, gameTable.id))
+			.where(or(eq(gameTable.hostId, u.id), eq(gamePlayerTable.userId, u.id)))
+			.orderBy(desc(gameTable.createdAt));
+		return {
+			games: rows.map((g) => ({
+				id: g.id,
+				roomCode: g.roomCode,
+				status: g.status,
+				role: g.hostId === u.id ? ("host" as const) : ("player" as const),
+				createdAt: g.createdAt,
+				startedAt: g.startedAt,
+				endedAt: g.endedAt,
+				quizId: g.quizId,
+			})),
+		};
+	})
+
+	.get("/games/:roomCode/result", async ({ params }) => {
+		const code = params.roomCode.toUpperCase();
+		const rows = await db
+			.select()
+			.from(gameTable)
+			.where(eq(gameTable.roomCode, code))
+			.limit(1);
+		const g = rows[0];
+		// Mask-existence: only completed games surface here.
+		if (!g || g.status !== "completed") notFound("Game not found");
+
+		const persisted = (
+			await db
+				.select()
+				.from(gameResultTable)
+				.where(eq(gameResultTable.gameId, g.id))
+				.limit(1)
+		)[0];
+
+		let ranking: RankingEntry[];
+		if (persisted) {
+			ranking = persisted.ranking as RankingEntry[];
+		} else {
+			// Persistence is fire-and-forget after the transition — there's a
+			// tiny window where the game finished but the row hasn't landed yet.
+			// In that window, fall back to the live driver's projection.
+			const live = peekRoom(code)?.currentRanking() ?? null;
+			if (!live) notFound("Game not found");
+			ranking = live;
+		}
+
+		return {
+			game: {
+				roomCode: g.roomCode,
+				hostId: g.hostId,
+				startedAt: g.startedAt,
+				endedAt: g.endedAt,
+			},
+			ranking,
+		};
+	})
 
 	// Lookup metadata by room code. Auth required only enough to know who you
 	// are (or that you're a guest); enforces nothing else here — WS does the
