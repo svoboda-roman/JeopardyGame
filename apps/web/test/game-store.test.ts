@@ -38,6 +38,7 @@ function baseGame(): GameView {
 		buzzOpensAt: null,
 		currentPlayerId: null,
 		currentPickerId: null,
+		currentWager: null,
 		finalJeopardy: null,
 	};
 }
@@ -125,6 +126,75 @@ describe("game store reducer", () => {
 		expect(g.currentQuestion).toBeNull();
 		const closedRef = g.board[0]!.questions.find((q) => q.ref === "q1")!;
 		expect(closedRef.closed).toBe(true);
+	});
+
+	it("daily_double_pending sets ddPending and dd_wagering phase", () => {
+		const store = createGameStore();
+		store.getState().apply(snap());
+		store.getState().apply({
+			type: "daily_double_pending",
+			pickerId: "p1",
+			categoryRef: "c1",
+			min: 5,
+			max: 1000,
+		});
+		expect(store.getState().game?.phase).toBe("dd_wagering");
+		expect(store.getState().ddPending).toEqual({
+			pickerId: "p1",
+			categoryRef: "c1",
+			min: 5,
+			max: 1000,
+		});
+	});
+
+	it("clue_revealed clears ddPending and reveals question with wager", () => {
+		const store = createGameStore();
+		store.getState().apply(snap());
+		store.getState().apply({
+			type: "daily_double_pending",
+			pickerId: "p1",
+			categoryRef: "c1",
+			min: 5,
+			max: 1000,
+		});
+		store.getState().apply({
+			type: "clue_revealed",
+			question: {
+				ref: "q1",
+				categoryRef: "c1",
+				pointValue: 100,
+				isDailyDouble: true,
+				clue: "DD clue",
+				answer: "DD answer",
+			},
+			wager: 500,
+			pickerId: "p1",
+		});
+		const g = store.getState().game!;
+		expect(g.phase).toBe("buzzed");
+		expect(g.currentWager).toBe(500);
+		expect(g.currentPlayerId).toBe("p1");
+		expect(g.currentQuestion?.clue).toBe("DD clue");
+		expect(store.getState().ddPending).toBeNull();
+	});
+
+	it("fj_started seeds finalJeopardy and tracks eligibility", () => {
+		const store = createGameStore();
+		store.getState().apply(snap());
+		store
+			.getState()
+			.apply({ type: "fj_started", category: "Geography", eligible: ["p1"] });
+		const g = store.getState().game!;
+		expect(g.phase).toBe("fj_wager");
+		expect(g.finalJeopardy?.category).toBe("Geography");
+		expect(store.getState().fjEligible).toEqual(["p1"]);
+	});
+
+	it("picker_changed updates currentPickerId", () => {
+		const store = createGameStore();
+		store.getState().apply(snap());
+		store.getState().apply({ type: "picker_changed", playerId: "p1" });
+		expect(store.getState().game?.currentPickerId).toBe("p1");
 	});
 
 	it("error message is captured", () => {

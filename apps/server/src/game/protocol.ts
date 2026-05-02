@@ -56,12 +56,15 @@ export interface FinalJeopardyView {
 	wagersSubmitted: string[];
 	/** Player ids who have submitted an answer (text stays private until judging). */
 	answersSubmitted: string[];
-	/** Per-player results once judging completes. */
+	/**
+	 * Per-player wager + answer + verdict, exposed during fj_judging and
+	 * after. `verdict: null` means the host hasn't judged that player yet.
+	 */
 	results: {
 		playerId: string;
 		wager: number;
 		answer: string;
-		verdict: "correct" | "incorrect" | "no_answer";
+		verdict: "correct" | "incorrect" | "no_answer" | null;
 	}[];
 }
 
@@ -78,6 +81,8 @@ export interface GameView {
 	currentPlayerId: string | null;
 	/** Player currently allowed to pick a question on the board. */
 	currentPickerId: string | null;
+	/** Wager on the current question (Daily Double). Null otherwise. */
+	currentWager: number | null;
 	/** Set when the game has Final Jeopardy enabled and a final question. */
 	finalJeopardy: FinalJeopardyView | null;
 }

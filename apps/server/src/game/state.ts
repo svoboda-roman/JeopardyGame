@@ -236,6 +236,7 @@ export function projectView(state: GameState): GameView {
 			: null,
 		currentPlayerId: state.currentPlayerId,
 		currentPickerId: state.currentPickerId,
+		currentWager: state.currentWager,
 		finalJeopardy: projectFinal(state),
 	};
 }
@@ -255,11 +256,11 @@ function projectFinal(state: GameState): FinalJeopardyView | null {
 		answersSubmitted: Object.keys(state.fjAnswers),
 		results:
 			state.phase === "fj_judging" || state.phase === "completed"
-				? Object.entries(state.fjJudged).map(([playerId, verdict]) => ({
+				? Object.keys(state.fjAnswers).map((playerId) => ({
 						playerId,
 						wager: state.fjWagers[playerId] ?? 0,
 						answer: state.fjAnswers[playerId] ?? "",
-						verdict,
+						verdict: state.fjJudged[playerId] ?? null,
 					}))
 				: [],
 	};

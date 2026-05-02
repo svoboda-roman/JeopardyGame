@@ -33,6 +33,9 @@ function MePage() {
 				<Link to="/quizzes">
 					<Button>My quizzes</Button>
 				</Link>
+				<Link to="/games">
+					<Button variant="outline">Game history</Button>
+				</Link>
 				<Link to="/settings">
 					<Button variant="outline">Settings</Button>
 				</Link>

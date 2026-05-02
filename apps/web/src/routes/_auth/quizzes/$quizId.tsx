@@ -333,10 +333,15 @@ function QuestionEditor({
 
 function HostButton({ quizId }: { quizId: string }) {
 	const navigate = useNavigate();
+	const [open, setOpen] = useState(false);
 	const [busy, setBusy] = useState(false);
 	const [error, setError] = useState<string | null>(null);
+	const [finalEnabled, setFinalEnabled] = useState(true);
+	const [readDelayMs, setReadDelayMs] = useState(3000);
+	const finalId = useId();
+	const delayId = useId();
 
-	async function onClick() {
+	async function host() {
 		setBusy(true);
 		setError(null);
 		try {
@@ -344,7 +349,10 @@ function HostButton({ quizId }: { quizId: string }) {
 				method: "POST",
 				credentials: "include",
 				headers: { "Content-Type": "application/json" },
-				body: JSON.stringify({ quizId }),
+				body: JSON.stringify({
+					quizId,
+					options: { finalEnabled, readDelayMs },
+				}),
 			});
 			if (res.status === 409) {
 				setError("You already have an active game.");
@@ -364,12 +372,85 @@ function HostButton({ quizId }: { quizId: string }) {
 		}
 	}
 
+	useEffect(() => {
+		if (!open) return;
+		function onKey(e: KeyboardEvent) {
+			if (e.key === "Escape") setOpen(false);
+		}
+		window.addEventListener("keydown", onKey);
+		return () => window.removeEventListener("keydown", onKey);
+	}, [open]);
+
 	return (
 		<>
-			<Button onClick={onClick} disabled={busy}>
-				{busy ? "Starting…" : "Host game"}
-			</Button>
+			<Button onClick={() => setOpen(true)}>Host game</Button>
 			{error && <span className="text-xs text-destructive">{error}</span>}
+			{open && (
+				<div
+					role="dialog"
+					aria-modal="true"
+					aria-label="Host game options"
+					className="fixed inset-0 z-20 p-4 flex items-center justify-center"
+				>
+					<button
+						type="button"
+						aria-label="Close dialog"
+						className="absolute inset-0 bg-background/90 backdrop-blur"
+						onClick={() => setOpen(false)}
+					/>
+					<div className="relative bg-card border rounded-2xl p-5 w-full max-w-sm space-y-4 glow-primary">
+						<h2 className="font-heading font-bold text-lg">Game options</h2>
+						<label
+							htmlFor={finalId}
+							className="flex items-center gap-3 text-sm cursor-pointer"
+						>
+							<input
+								id={finalId}
+								type="checkbox"
+								checked={finalEnabled}
+								onChange={(e) => setFinalEnabled(e.target.checked)}
+								className="size-4"
+							/>
+							<span>
+								<span className="block font-medium">Final Jeopardy</span>
+								<span className="block text-xs text-muted-foreground">
+									Play a final round after the board is cleared (requires a
+									final question on the quiz).
+								</span>
+							</span>
+						</label>
+						<div className="space-y-1">
+							<label
+								htmlFor={delayId}
+								className="text-xs font-semibold uppercase tracking-wider text-muted-foreground"
+							>
+								Read delay (ms)
+							</label>
+							<input
+								id={delayId}
+								type="number"
+								min={0}
+								max={10000}
+								step={500}
+								value={readDelayMs}
+								onChange={(e) => setReadDelayMs(Number(e.target.value))}
+								className="w-full rounded-md border bg-input px-3 py-2 focus:outline-none focus:border-primary focus:ring-3 focus:ring-ring/40"
+							/>
+							<p className="text-xs text-muted-foreground">
+								Time before buzzers open after the host opens a clue.
+							</p>
+						</div>
+						<div className="flex gap-2 justify-end">
+							<Button variant="outline" onClick={() => setOpen(false)}>
+								Cancel
+							</Button>
+							<Button onClick={host} disabled={busy}>
+								{busy ? "Starting…" : "Start game"}
+							</Button>
+						</div>
+					</div>
+				</div>
+			)}
 		</>
 	);
 }
