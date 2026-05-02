@@ -188,9 +188,10 @@ export const game = pgTable(
 	{
 		id: text("id").primaryKey().$defaultFn(uuid),
 		roomCode: text("room_code").notNull(),
-		quizId: text("quiz_id")
-			.notNull()
-			.references(() => quiz.id, { onDelete: "restrict" }),
+		// Nullable + set null on quiz delete: deleting a quiz preserves the
+		// game's history (results, room code, players) but loses the link to
+		// the source quiz. Snapshots in `game_snapshot` keep the board.
+		quizId: text("quiz_id").references(() => quiz.id, { onDelete: "set null" }),
 		hostId: text("host_id")
 			.notNull()
 			.references(() => user.id, { onDelete: "cascade" }),
