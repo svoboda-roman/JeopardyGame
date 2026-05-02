@@ -1,5 +1,5 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
-import { useId, useState } from "react";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { useEffect, useId, useState } from "react";
 import { useStore } from "zustand";
 import { WagerInput } from "#/components/game/wager-input.tsx";
 import { Button } from "#/components/ui/button.tsx";
@@ -11,12 +11,47 @@ export const Route = createFileRoute("/play/$roomCode")({
 
 function PlayPage() {
 	const { roomCode } = Route.useParams();
-	const { store, status, send } = useGameSocket(roomCode);
+	const navigate = useNavigate();
+	const { store, status, endReason, endCode, send } = useGameSocket(roomCode);
 	const game = useStore(store, (s) => s.game);
 	const selfId = useStore(store, (s) => s.selfPlayerId);
 	const ddPending = useStore(store, (s) => s.ddPending);
 	const fjEligible = useStore(store, (s) => s.fjEligible);
 	const lastError = useStore(store, (s) => s.lastError);
+
+	// If we land here from a shared /play/<code> link without ever having
+	// joined this game, the WS rejects us with 4403. Bounce to the join
+	// form with the code prefilled instead of showing "not available".
+	useEffect(() => {
+		if (status === "ended" && endCode === 4403) {
+			navigate({ to: "/join", search: { code: roomCode } });
+		}
+	}, [status, endCode, navigate, roomCode]);
+
+	if (status === "ended" && endCode === 4403) {
+		return (
+			<div className="min-h-screen flex items-center justify-center text-sm text-muted-foreground">
+				Redirecting to join…
+			</div>
+		);
+	}
+
+	if (status === "ended") {
+		return (
+			<div className="min-h-screen flex flex-col items-center justify-center gap-3 p-4 text-center">
+				<p className="text-lg font-medium">This game is no longer available.</p>
+				<p className="text-sm text-muted-foreground">
+					{endReason ?? "The host may have ended it or started a new one."}
+				</p>
+				<Link
+					to="/"
+					className="text-sm underline text-muted-foreground hover:text-foreground"
+				>
+					Back home
+				</Link>
+			</div>
+		);
+	}
 
 	if (status !== "open" || !game) {
 		return (
@@ -44,8 +79,7 @@ function PlayPage() {
 		game.phase === "fj_answer" ||
 		game.phase === "fj_judging";
 
-	const canBuzz =
-		(game.phase === "buzz_open" || game.phase === "reading") && !isDDOther;
+	const canBuzz = game.phase === "buzz_open" && !isDDOther;
 
 	return (
 		<div className="min-h-[100dvh] flex flex-col p-4 gap-4 max-w-md mx-auto w-full">
@@ -117,7 +151,7 @@ function PlayPage() {
 				game.phase === "buzz_open" ||
 				game.phase === "buzzed") &&
 				game.currentQuestion && (
-					<section className="border rounded-2xl p-4 space-y-2 bg-card">
+					<section className="border rounded-2xl p-4 space-y-3 bg-card glow-primary">
 						<p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
 							<span className="score">
 								${game.currentWager ?? game.currentQuestion.pointValue}
@@ -125,7 +159,9 @@ function PlayPage() {
 							{game.currentQuestion.isDailyDouble &&
 								` · Daily Double (wager $${game.currentWager ?? "—"})`}
 						</p>
-						<p className="text-lg leading-snug">{game.currentQuestion.clue}</p>
+						<p className="text-xl leading-snug font-medium">
+							{game.currentQuestion.clue}
+						</p>
 						{buzzedPlayer && (
 							<p className="text-sm text-muted-foreground">
 								<strong className="text-foreground">

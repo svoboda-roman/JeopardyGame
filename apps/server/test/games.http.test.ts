@@ -59,13 +59,23 @@ describe("POST /games", () => {
 		expect(detail.game.status).toBe("lobby");
 	});
 
-	it("rejects creating a second active game for the same host", async () => {
+	it("auto-aborts the prior in-flight game when the host starts a new one", async () => {
 		const host = await freshHost();
 		const quiz = await createQuiz(host);
 		const a = await createGame(quiz.id, host);
 		expect(a.status).toBe(201);
+		const aBody = (await a.json()) as { game: { roomCode: string } };
 		const b = await createGame(quiz.id, host);
-		expect(b.status).toBe(409);
+		expect(b.status).toBe(201);
+		const bBody = (await b.json()) as { game: { roomCode: string } };
+		expect(bBody.game.roomCode).not.toBe(aBody.game.roomCode);
+
+		const prior = await call(`/games/${aBody.game.roomCode}`);
+		expect(prior.status).toBe(200);
+		const priorDetail = (await prior.json()) as {
+			game: { status: string };
+		};
+		expect(priorDetail.game.status).toBe("aborted");
 	});
 });
 

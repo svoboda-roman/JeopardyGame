@@ -257,6 +257,12 @@ export async function getOrLoadRoom(
 			.limit(1);
 		const g = games[0];
 		if (!g) return null;
+		// Don't resurrect rooms for games that are no longer in-flight.
+		// Without this, an aborted game (e.g. when the host started a new
+		// one) gets re-loaded from DB the moment a stale player socket
+		// reconnects, leaving them stuck in the dead room.
+		if (g.status !== "lobby" && g.status !== "active" && g.status !== "paused")
+			return null;
 
 		const snap = await db
 			.select()

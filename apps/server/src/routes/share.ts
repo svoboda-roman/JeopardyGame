@@ -1,7 +1,8 @@
-import { and, eq, isNull } from "drizzle-orm";
+import { and, desc, eq, inArray, isNull } from "drizzle-orm";
 import { Elysia } from "elysia";
 import { db } from "../db/client.ts";
 import {
+	game as gameTable,
 	quizShare as quizShareTable,
 	quiz as quizTable,
 	userProfile as userProfileTable,
@@ -19,6 +20,8 @@ export const share = new Elysia({ tags: ["share"] })
 	.get("/share/:token", async ({ params }) => {
 		const rows = await db
 			.select({
+				quizId: quizTable.id,
+				ownerId: quizTable.ownerId,
 				quizTitle: quizTable.title,
 				ownerName: userProfileTable.displayName,
 				userName: userTable.name,
@@ -36,8 +39,27 @@ export const share = new Elysia({ tags: ["share"] })
 			.limit(1);
 		const r = rows[0];
 		if (!r) notFound("Share not found");
+
+		// Surface the quiz owner's currently in-flight game (if any) so the
+		// share preview can offer a one-click join. We match on `hostId`
+		// rather than `quizId` because deleting a quiz nulls `game.quizId`
+		// but the live game may still be running.
+		const live = await db
+			.select({ roomCode: gameTable.roomCode })
+			.from(gameTable)
+			.where(
+				and(
+					eq(gameTable.hostId, r.ownerId),
+					inArray(gameTable.status, ["lobby", "active", "paused"]),
+					eq(gameTable.quizId, r.quizId),
+				),
+			)
+			.orderBy(desc(gameTable.createdAt))
+			.limit(1);
+
 		return {
 			quizTitle: r.quizTitle,
 			ownerDisplayName: r.ownerName ?? r.userName,
+			activeRoomCode: live[0]?.roomCode ?? null,
 		};
 	});

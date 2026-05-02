@@ -213,10 +213,80 @@ export const quizzes = new Elysia({ tags: ["quizzes"] })
 		{
 			body: t.Object({
 				title: t.Optional(t.String({ minLength: 1, maxLength: 40 })),
-				position: t.Optional(t.Integer({ minimum: 0, maximum: 5 })),
+				position: t.Optional(t.Integer({ minimum: 0 })),
 			}),
 		},
 	)
+
+	// Append a new category to a quiz with a fresh column of empty questions.
+	.post("/quizzes/:id/categories", async ({ request, params, set }) => {
+		const u = await requireUser(request);
+		await ownedQuiz(params.id, u.id);
+
+		const created = await db.transaction(async (tx) => {
+			const existing = await tx
+				.select({ position: categoryTable.position })
+				.from(categoryTable)
+				.where(eq(categoryTable.quizId, params.id));
+			const nextPos = existing.reduce((m, r) => Math.max(m, r.position + 1), 0);
+			const [cat] = await tx
+				.insert(categoryTable)
+				.values({
+					quizId: params.id,
+					position: nextPos,
+					title: `Category ${nextPos + 1}`,
+				})
+				.returning();
+			if (!cat) throw new Error("category insert returned no row");
+			const questions = POINT_VALUES.map((pv, qIdx) => ({
+				categoryId: cat.id,
+				position: qIdx,
+				pointValue: pv,
+				isDailyDouble: false,
+				clue: "",
+				answer: "",
+			}));
+			await tx.insert(questionTable).values(questions);
+			return cat;
+		});
+		set.status = 201;
+		return { category: created };
+	})
+
+	// Delete a category and renumber the remaining ones to stay dense.
+	.delete("/categories/:id", async ({ request, params, set }) => {
+		const u = await requireUser(request);
+		const cat = await ownedCategory(params.id, u.id);
+
+		await db.transaction(async (tx) => {
+			await tx.delete(categoryTable).where(eq(categoryTable.id, params.id));
+			// Close the gap so positions stay 0..N-1; clients sort by position.
+			// Two-pass with a temporary high range avoids violating the
+			// (quiz_id, position) unique constraint mid-update.
+			const remaining = await tx
+				.select()
+				.from(categoryTable)
+				.where(eq(categoryTable.quizId, cat.quizId))
+				.orderBy(asc(categoryTable.position));
+			for (let i = 0; i < remaining.length; i++) {
+				const r = remaining[i];
+				if (!r) continue;
+				await tx
+					.update(categoryTable)
+					.set({ position: 1000 + i })
+					.where(eq(categoryTable.id, r.id));
+			}
+			for (let i = 0; i < remaining.length; i++) {
+				const r = remaining[i];
+				if (!r) continue;
+				await tx
+					.update(categoryTable)
+					.set({ position: i })
+					.where(eq(categoryTable.id, r.id));
+			}
+		});
+		set.status = 204;
+	})
 
 	.patch(
 		"/questions/:id",

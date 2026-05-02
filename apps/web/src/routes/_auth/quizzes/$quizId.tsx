@@ -1,3 +1,5 @@
+import { Delete02Icon } from "@hugeicons/core-free-icons";
+import { HugeiconsIcon } from "@hugeicons/react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useId, useRef, useState } from "react";
@@ -131,6 +133,7 @@ function Board({
 	questions: Question[];
 	quizId: string;
 }) {
+	const qc = useQueryClient();
 	const sortedCats = [...categories].sort((a, b) => a.position - b.position);
 	const byCat = new Map<string, Question[]>();
 	for (const c of sortedCats) byCat.set(c.id, []);
@@ -138,30 +141,76 @@ function Board({
 	for (const arr of byCat.values()) arr.sort((a, b) => a.position - b.position);
 
 	const [editing, setEditing] = useState<Question | null>(null);
+	const [busy, setBusy] = useState(false);
+
+	async function addCategory() {
+		setBusy(true);
+		try {
+			await api.quizzes({ id: quizId }).categories.post();
+			await qc.invalidateQueries({ queryKey: ["quiz", quizId] });
+		} finally {
+			setBusy(false);
+		}
+	}
+
+	async function removeCategory(cat: Category) {
+		if (sortedCats.length <= 1) return;
+		const ok = window.confirm(
+			`Remove category "${cat.title}" and all its questions?`,
+		);
+		if (!ok) return;
+		setBusy(true);
+		try {
+			await api.categories({ id: cat.id }).delete();
+			await qc.invalidateQueries({ queryKey: ["quiz", quizId] });
+		} finally {
+			setBusy(false);
+		}
+	}
 
 	return (
-		<div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
-			{sortedCats.map((cat) => (
-				<div key={cat.id} className="space-y-2">
-					<CategoryField category={cat} quizId={quizId} />
-					{(byCat.get(cat.id) ?? []).map((q) => (
-						<button
-							key={q.id}
-							type="button"
-							onClick={() => setEditing(q)}
-							className="block w-full rounded-md border px-2 py-3 text-left hover:bg-muted/50"
-						>
-							<div className="text-xs text-muted-foreground flex items-center justify-between">
-								<span>${q.pointValue}</span>
-								{q.isDailyDouble && <span title="Daily Double">DD</span>}
-							</div>
-							<p className="text-sm line-clamp-2 mt-1">
-								{q.clue || <em className="text-muted-foreground">empty</em>}
-							</p>
-						</button>
-					))}
-				</div>
-			))}
+		<div className="space-y-3">
+			<div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
+				{sortedCats.map((cat) => (
+					<div key={cat.id} className="space-y-2">
+						<CategoryField
+							category={cat}
+							quizId={quizId}
+							onRemove={
+								sortedCats.length > 1 ? () => removeCategory(cat) : null
+							}
+							removeDisabled={busy}
+						/>
+						{(byCat.get(cat.id) ?? []).map((q) => (
+							<button
+								key={q.id}
+								type="button"
+								onClick={() => setEditing(q)}
+								className="block w-full rounded-md border px-2 py-3 text-left hover:bg-muted/50"
+							>
+								<div className="text-xs text-muted-foreground flex items-center justify-between">
+									<span>${q.pointValue}</span>
+									{q.isDailyDouble && <span title="Daily Double">DD</span>}
+								</div>
+								<p className="text-sm line-clamp-2 mt-1">
+									{q.clue || <em className="text-muted-foreground">empty</em>}
+								</p>
+							</button>
+						))}
+					</div>
+				))}
+			</div>
+
+			<div className="flex justify-center">
+				<Button
+					variant="outline"
+					size="sm"
+					onClick={addCategory}
+					disabled={busy}
+				>
+					{busy ? "…" : "+ Add category"}
+				</Button>
+			</div>
 
 			{editing && (
 				<QuestionEditor
@@ -177,9 +226,13 @@ function Board({
 function CategoryField({
 	category,
 	quizId,
+	onRemove,
+	removeDisabled,
 }: {
 	category: Category;
 	quizId: string;
+	onRemove: (() => void) | null;
+	removeDisabled: boolean;
 }) {
 	const qc = useQueryClient();
 	const [value, setValue] = useState(category.title);
@@ -193,14 +246,28 @@ function CategoryField({
 	}
 
 	return (
-		<input
-			aria-label={`Category ${category.position + 1} title`}
-			value={value}
-			onChange={(e) => setValue(e.target.value)}
-			onBlur={save}
-			className="w-full font-semibold rounded-md border bg-background px-2 py-2 text-center"
-			maxLength={40}
-		/>
+		<div className="relative group">
+			<input
+				aria-label={`Category ${category.position + 1} title`}
+				value={value}
+				onChange={(e) => setValue(e.target.value)}
+				onBlur={save}
+				className="w-full font-semibold rounded-md border bg-background pl-2 pr-9 py-2 text-center focus:outline-none focus:border-primary"
+				maxLength={40}
+			/>
+			{onRemove && (
+				<button
+					type="button"
+					aria-label={`Remove ${category.title}`}
+					title="Remove category"
+					onClick={onRemove}
+					disabled={removeDisabled}
+					className="absolute right-1.5 top-1/2 -translate-y-1/2 p-1.5 rounded text-muted-foreground hover:text-destructive hover:bg-destructive/10 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+				>
+					<HugeiconsIcon icon={Delete02Icon} size={16} strokeWidth={2} />
+				</button>
+			)}
+		</div>
 	);
 }
 

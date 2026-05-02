@@ -1,4 +1,4 @@
-import { and, asc, count, desc, eq, or } from "drizzle-orm";
+import { and, asc, count, desc, eq, inArray, or, sql } from "drizzle-orm";
 import { Elysia, t } from "elysia";
 import { db } from "../db/client.ts";
 import {
@@ -13,7 +13,7 @@ import {
 	userProfile as userProfileTable,
 	user as userTable,
 } from "../db/schema.ts";
-import { peekRoom, type RankingEntry } from "../game/rooms.ts";
+import { evictRoom, peekRoom, type RankingEntry } from "../game/rooms.ts";
 import type {
 	InternalBoard,
 	InternalFinalQuestion,
@@ -143,30 +143,52 @@ export const games = new Elysia({ tags: ["games"] })
 			for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
 				const roomCode = generateRoomCode();
 				try {
-					const created = await db.transaction(async (tx) => {
-						const [g] = await tx
-							.insert(gameTable)
-							.values({
-								roomCode,
-								quizId: body.quizId,
-								hostId: u.id,
-								status: "lobby",
-								options: { readDelayMs, finalEnabled },
-							})
-							.returning();
-						if (!g) throw new Error("game insert returned no row");
+					const { created, abortedRoomCodes } = await db.transaction(
+						async (tx) => {
+							// Auto-abort any prior in-flight game owned by this host so
+							// the unique partial index `game_host_active_uk` lets the new
+							// row in (FR-G6: only one in-flight game per host).
+							const aborted = await tx
+								.update(gameTable)
+								.set({ status: "aborted", endedAt: sql`now()` })
+								.where(
+									and(
+										eq(gameTable.hostId, u.id),
+										inArray(gameTable.status, ["lobby", "active", "paused"]),
+									),
+								)
+								.returning({ roomCode: gameTable.roomCode });
 
-						await tx
-							.insert(gameSnapshotTable)
-							.values({ gameId: g.id, quiz: snapshot });
-						await tx.insert(gamePlayerTable).values({
-							gameId: g.id,
-							userId: u.id,
-							displayName: hostName,
-							status: "joined",
-						});
-						return g;
-					});
+							const [g] = await tx
+								.insert(gameTable)
+								.values({
+									roomCode,
+									quizId: body.quizId,
+									hostId: u.id,
+									status: "lobby",
+									options: { readDelayMs, finalEnabled },
+								})
+								.returning();
+							if (!g) throw new Error("game insert returned no row");
+
+							await tx
+								.insert(gameSnapshotTable)
+								.values({ gameId: g.id, quiz: snapshot });
+							await tx.insert(gamePlayerTable).values({
+								gameId: g.id,
+								userId: u.id,
+								displayName: hostName,
+								status: "joined",
+							});
+							return {
+								created: g,
+								abortedRoomCodes: aborted.map((r) => r.roomCode),
+							};
+						},
+					);
+					// Drop in-memory drivers for any games we just aborted so any
+					// still-connected sockets stop receiving broadcasts.
+					for (const code of abortedRoomCodes) evictRoom(code);
 					set.status = 201;
 					return { game: { id: created.id, roomCode: created.roomCode } };
 				} catch (e) {

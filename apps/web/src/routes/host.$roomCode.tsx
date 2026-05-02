@@ -1,4 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
+import { useState } from "react";
 import { useStore } from "zustand";
 import { Button } from "#/components/ui/button.tsx";
 import { useGameSocket } from "#/lib/game-socket.ts";
@@ -9,10 +10,27 @@ export const Route = createFileRoute("/host/$roomCode")({
 
 function HostPage() {
 	const { roomCode } = Route.useParams();
-	const { store, status, send } = useGameSocket(roomCode);
+	const { store, status, endReason, send } = useGameSocket(roomCode);
 	const game = useStore(store, (s) => s.game);
 	const ddPending = useStore(store, (s) => s.ddPending);
 	const fjEligible = useStore(store, (s) => s.fjEligible);
+
+	if (status === "ended") {
+		return (
+			<div className="min-h-screen flex flex-col items-center justify-center gap-3 p-4 text-center">
+				<p className="text-lg font-medium">This game is no longer available.</p>
+				<p className="text-sm text-muted-foreground">
+					{endReason ?? "It has ended or been replaced."}
+				</p>
+				<Link
+					to="/"
+					className="text-sm underline text-muted-foreground hover:text-foreground"
+				>
+					Back home
+				</Link>
+			</div>
+		);
+	}
 
 	if (status !== "open" || !game) {
 		return (
@@ -162,61 +180,17 @@ function HostPage() {
 				game.phase === "buzz_open" ||
 				game.phase === "buzzed") &&
 				game.currentQuestion && (
-					<section className="border rounded-2xl p-5 space-y-3 bg-card glow-primary">
-						<p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-							<span className="score">
-								${game.currentWager ?? game.currentQuestion.pointValue}
-							</span>
-							{game.currentQuestion.isDailyDouble && (
-								<span className="ml-2 text-[color:var(--gold)]">
-									· Daily Double (wager ${game.currentWager ?? "—"})
-								</span>
-							)}
-						</p>
-						<p className="text-xl leading-snug">{game.currentQuestion.clue}</p>
-						<p className="text-sm">
-							<span className="text-muted-foreground">Answer: </span>
-							<span className="font-medium">{game.currentQuestion.answer}</span>
-						</p>
-						{buzzed ? (
-							<div className="space-y-2">
-								<p className="text-sm">
-									<strong>{buzzed.displayName}</strong>{" "}
-									{game.currentWager !== null ? "is answering." : "buzzed in."}
-								</p>
-								<div className="flex gap-2 flex-wrap">
-									<Button
-										onClick={() => send({ type: "judge", verdict: "correct" })}
-									>
-										Correct
-									</Button>
-									<Button
-										variant="outline"
-										onClick={() =>
-											send({ type: "judge", verdict: "incorrect" })
-										}
-									>
-										Incorrect
-									</Button>
-									<Button
-										variant="outline"
-										onClick={() =>
-											send({ type: "judge", verdict: "no_answer" })
-										}
-									>
-										No answer
-									</Button>
-								</div>
-							</div>
-						) : (
-							<Button
-								variant="outline"
-								onClick={() => send({ type: "close_question" })}
-							>
-								Close question
-							</Button>
-						)}
-					</section>
+					<QuestionModal
+						key={game.currentQuestion.clue}
+						clue={game.currentQuestion.clue}
+						answer={game.currentQuestion.answer}
+						pointValue={game.currentQuestion.pointValue}
+						isDailyDouble={game.currentQuestion.isDailyDouble}
+						currentWager={game.currentWager}
+						buzzedName={buzzed?.displayName ?? null}
+						onJudge={(verdict) => send({ type: "judge", verdict })}
+						onClose={() => send({ type: "close_question" })}
+					/>
 				)}
 
 			{(game.phase === "fj_wager" ||
@@ -261,6 +235,97 @@ function HostPage() {
 					</Link>
 				</section>
 			)}
+		</div>
+	);
+}
+
+function QuestionModal({
+	clue,
+	answer,
+	pointValue,
+	isDailyDouble,
+	currentWager,
+	buzzedName,
+	onJudge,
+	onClose,
+}: {
+	clue: string;
+	answer: string;
+	pointValue: number;
+	isDailyDouble: boolean;
+	currentWager: number | null;
+	buzzedName: string | null;
+	onJudge: (verdict: "correct" | "incorrect" | "no_answer") => void;
+	onClose: () => void;
+}) {
+	const [revealed, setRevealed] = useState(false);
+
+	return (
+		<div
+			role="dialog"
+			aria-modal="true"
+			aria-label="Current question"
+			className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm"
+		>
+			<div className="w-full max-w-3xl border rounded-2xl p-6 sm:p-10 bg-card glow-primary space-y-6">
+				<p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground text-center">
+					<span className="score text-base">${currentWager ?? pointValue}</span>
+					{isDailyDouble && (
+						<span className="ml-2 text-[color:var(--gold)]">
+							· Daily Double (wager ${currentWager ?? "—"})
+						</span>
+					)}
+				</p>
+
+				<p className="text-2xl sm:text-4xl leading-snug text-center font-heading">
+					{clue}
+				</p>
+
+				<div className="border-t pt-4 space-y-2">
+					<p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground text-center">
+						Answer
+					</p>
+					{revealed ? (
+						<p className="text-xl sm:text-2xl text-center font-medium text-[color:var(--gold)]">
+							{answer}
+						</p>
+					) : (
+						<div className="flex justify-center">
+							<Button
+								variant="outline"
+								size="sm"
+								onClick={() => setRevealed(true)}
+							>
+								Reveal answer
+							</Button>
+						</div>
+					)}
+				</div>
+
+				{buzzedName ? (
+					<div className="space-y-3 border-t pt-4">
+						<p className="text-center text-sm">
+							<strong>{buzzedName}</strong>{" "}
+							{currentWager !== null ? "is answering." : "buzzed in."}
+						</p>
+						<div className="flex gap-2 flex-wrap justify-center">
+							<Button onClick={() => onJudge("correct")}>Correct</Button>
+							<Button variant="outline" onClick={() => onJudge("incorrect")}>
+								Incorrect
+							</Button>
+							<Button variant="outline" onClick={() => onJudge("no_answer")}>
+								No answer
+							</Button>
+						</div>
+					</div>
+				) : (
+					<div className="flex justify-center border-t pt-4">
+						<Button variant="outline" onClick={onClose}>
+							Close question
+						</Button>
+					</div>
+				)}
+			</div>
 		</div>
 	);
 }

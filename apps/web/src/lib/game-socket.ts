@@ -7,11 +7,18 @@ import { createGameStore } from "#/stores/game.ts";
 
 const wsBase = import.meta.env.VITE_WS_URL ?? "ws://localhost:3000";
 
-export type ConnectionStatus = "connecting" | "open" | "closed" | "error";
+export type ConnectionStatus =
+	| "connecting"
+	| "open"
+	| "closed"
+	| "error"
+	| "ended";
 
 export function useGameSocket(roomCode: string) {
 	const store = useMemo(() => createGameStore(), []);
 	const [status, setStatus] = useState<ConnectionStatus>("connecting");
+	const [endReason, setEndReason] = useState<string | null>(null);
+	const [endCode, setEndCode] = useState<number | null>(null);
 	const wsRef = useRef<WebSocket | null>(null);
 
 	useEffect(() => {
@@ -44,12 +51,20 @@ export function useGameSocket(roomCode: string) {
 				}
 			});
 
-			ws.addEventListener("close", () => {
+			ws.addEventListener("close", (ev) => {
 				// Only react if this ws is still the "current" one. Otherwise this
 				// is a stale socket (e.g. closed by StrictMode's double-mount) and
 				// we must not clobber refs/status that belong to a newer one.
 				if (wsRef.current !== ws) return;
 				wsRef.current = null;
+				// 44xx codes are terminal application errors from our server
+				// (game not found, not a member, bad message). No point retrying.
+				if (ev.code >= 4400 && ev.code < 4500) {
+					setEndCode(ev.code);
+					setEndReason(ev.reason || "Game unavailable");
+					setStatus("ended");
+					return;
+				}
 				setStatus("closed");
 				if (cancelled) return;
 				const delay = Math.min(10_000, 500 * 2 ** attempt++);
@@ -78,5 +93,5 @@ export function useGameSocket(roomCode: string) {
 		ws.send(JSON.stringify(msg));
 	}
 
-	return { store, status, send };
+	return { store, status, endReason, endCode, send };
 }
