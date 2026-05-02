@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useState } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
 import { useStore } from "zustand";
 import { Button } from "#/components/ui/button.tsx";
 import { useGameSocket } from "#/lib/game-socket.ts";
@@ -7,6 +7,19 @@ import { useGameSocket } from "#/lib/game-socket.ts";
 export const Route = createFileRoute("/host/$roomCode")({
 	component: HostPage,
 });
+
+const PHASE_LABEL: Record<string, string> = {
+	lobby: "Lobby",
+	picking: "Picking",
+	reading: "Reading",
+	buzz_open: "Buzzers open",
+	buzzed: "Answering",
+	dd_wagering: "Daily Double",
+	fj_wager: "Final · Wagers",
+	fj_answer: "Final · Answers",
+	fj_judging: "Final · Judging",
+	completed: "Completed",
+};
 
 function HostPage() {
 	const { roomCode } = Route.useParams();
@@ -34,8 +47,9 @@ function HostPage() {
 
 	if (status !== "open" || !game) {
 		return (
-			<div className="min-h-screen flex items-center justify-center text-sm text-muted-foreground">
-				{status === "closed" ? "Reconnecting…" : "Connecting…"}
+			<div className="min-h-screen flex flex-col items-center justify-center gap-3 text-sm text-muted-foreground">
+				<div className="size-8 rounded-full border-2 border-primary/30 border-t-primary animate-spin" />
+				<p>{status === "closed" ? "Reconnecting…" : "Connecting…"}</p>
 			</div>
 		);
 	}
@@ -43,10 +57,11 @@ function HostPage() {
 	const buzzed = game.currentPlayerId
 		? game.players.find((p) => p.id === game.currentPlayerId)
 		: null;
-	const picker = game.currentPickerId
-		? game.players.find((p) => p.id === game.currentPickerId)
-		: null;
-	const nonHost = game.players.filter((p) => !p.isHost);
+	const nonHost = game.players
+		.filter((p) => !p.isHost)
+		.sort(
+			(a, b) => b.score - a.score || a.displayName.localeCompare(b.displayName),
+		);
 	const allClosed = game.board.every((c) => c.questions.every((q) => q.closed));
 	const fjAvailable =
 		game.phase === "picking" &&
@@ -54,84 +69,134 @@ function HostPage() {
 		game.finalJeopardy !== null &&
 		nonHost.some((p) => p.score > 0);
 
+	const totalQuestions = game.board.reduce(
+		(sum, cat) => sum + cat.questions.length,
+		0,
+	);
+	const closedQuestions = game.board.reduce(
+		(sum, cat) => sum + cat.questions.filter((q) => q.closed).length,
+		0,
+	);
+	const progress = totalQuestions > 0 ? closedQuestions / totalQuestions : 0;
+	const showBoard =
+		game.phase === "picking" ||
+		game.phase === "reading" ||
+		game.phase === "buzz_open" ||
+		game.phase === "buzzed" ||
+		game.phase === "dd_wagering";
+
 	return (
-		<div className="min-h-[100dvh] p-4 max-w-6xl mx-auto space-y-4">
-			<header className="flex flex-wrap items-center gap-4 justify-between">
-				<div>
-					<p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-						Room
-					</p>
-					<p className="room-code text-3xl wordmark-accent">{game.roomCode}</p>
+		<div className="min-h-[100dvh] p-4 sm:p-6 max-w-7xl mx-auto space-y-5">
+			<header className="relative overflow-hidden rounded-2xl border bg-card/80 backdrop-blur-sm p-5 sm:p-6">
+				<div
+					aria-hidden
+					className="pointer-events-none absolute -top-24 -right-24 size-64 rounded-full bg-primary/10 blur-3xl"
+				/>
+				<div className="relative flex flex-wrap items-center gap-x-6 gap-y-4 justify-between">
+					<div className="flex items-center gap-5">
+						<Link
+							to="/"
+							className="text-xs uppercase tracking-wider text-muted-foreground hover:text-foreground transition-colors hidden sm:inline"
+						>
+							← Home
+						</Link>
+						<div>
+							<p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-muted-foreground">
+								Room
+							</p>
+							<p className="room-code text-3xl sm:text-4xl wordmark-accent leading-tight">
+								{game.roomCode}
+							</p>
+						</div>
+						<div className="hidden sm:block h-10 w-px bg-border" />
+						<div>
+							<p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-muted-foreground">
+								Phase
+							</p>
+							<PhaseBadge phase={game.phase} />
+						</div>
+						{showBoard && (
+							<div className="hidden md:block">
+								<p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-muted-foreground">
+									Board
+								</p>
+								<div className="flex items-center gap-2">
+									<div className="h-1.5 w-32 rounded-full bg-input overflow-hidden">
+										<div
+											className="h-full bg-primary transition-all duration-500"
+											style={{ width: `${progress * 100}%` }}
+										/>
+									</div>
+									<span className="text-xs font-mono text-muted-foreground tabular-nums">
+										{closedQuestions}/{totalQuestions}
+									</span>
+								</div>
+							</div>
+						)}
+					</div>
+					<div className="flex items-center gap-2">
+						{game.phase === "lobby" && (
+							<Button size="lg" onClick={() => send({ type: "start_game" })}>
+								Start game
+							</Button>
+						)}
+						{fjAvailable && (
+							<Button
+								size="lg"
+								variant="gold"
+								onClick={() => send({ type: "start_final" })}
+							>
+								Start Final Jeopardy
+							</Button>
+						)}
+					</div>
 				</div>
-				<p className="text-sm text-muted-foreground">
-					Phase: <span className="text-foreground font-mono">{game.phase}</span>
-				</p>
-				{game.phase === "lobby" && (
-					<Button size="lg" onClick={() => send({ type: "start_game" })}>
-						Start game
-					</Button>
-				)}
-				{fjAvailable && (
-					<Button
-						size="lg"
-						variant="gold"
-						onClick={() => send({ type: "start_final" })}
-					>
-						Start Final Jeopardy
-					</Button>
-				)}
 			</header>
 
-			<section className="border rounded-2xl p-3 bg-card">
-				<div className="flex items-center justify-between mb-2">
-					<h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-						Players
-					</h2>
-					{game.phase === "picking" && nonHost.length > 0 && (
-						<PickerOverride
-							players={nonHost}
-							currentId={game.currentPickerId}
-							onPick={(id) => send({ type: "set_picker", playerId: id })}
-						/>
-					)}
+			<section className="rounded-2xl border bg-card/80 backdrop-blur-sm p-4 sm:p-5">
+				<div className="flex items-center justify-between mb-3">
+					<div className="flex items-center gap-2">
+						<h2 className="text-[10px] font-semibold uppercase tracking-[0.2em] text-muted-foreground">
+							Players
+						</h2>
+						<span className="text-[10px] tabular-nums text-muted-foreground bg-input rounded-full px-2 py-0.5">
+							{nonHost.length}
+						</span>
+					</div>
+					<div className="flex items-center gap-2">
+						{game.phase === "picking" && nonHost.length > 0 && (
+							<>
+								<span className="text-xs text-muted-foreground hidden sm:inline">
+									<span className="text-[color:var(--gold)]">★</span> Selecting
+									question:
+								</span>
+								<PickerOverride
+									players={nonHost}
+									currentId={game.currentPickerId}
+									onPick={(id) => send({ type: "set_picker", playerId: id })}
+								/>
+							</>
+						)}
+					</div>
 				</div>
-				<ul className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2 text-sm">
-					{nonHost.map((p) => (
-						<li
-							key={p.id}
-							className={`rounded-md border px-2 py-1 bg-input transition-colors ${
-								p.id === game.currentPlayerId
-									? "border-primary glow-primary"
-									: ""
-							} ${p.id === game.currentPickerId ? "ring-2 ring-[color:var(--gold)]/50" : ""}`}
-						>
-							<span className="block truncate">
-								{p.displayName}
-								{p.id === game.currentPickerId && (
-									<span className="ml-1 text-[color:var(--gold)]">★</span>
-								)}
-							</span>
-							<span className="score text-xs">${p.score}</span>
-						</li>
-					))}
-				</ul>
-				{picker && game.phase === "picking" && (
-					<p className="mt-2 text-xs text-muted-foreground">
-						Picking:{" "}
-						<strong className="text-foreground">{picker.displayName}</strong>
+				{nonHost.length === 0 ? (
+					<p className="text-sm text-muted-foreground text-center py-6">
+						Waiting for players to join with the room code above…
 					</p>
+				) : (
+					<RankedPlayers
+						players={nonHost}
+						currentPlayerId={game.currentPlayerId}
+						currentPickerId={game.currentPickerId}
+					/>
 				)}
 			</section>
 
-			{(game.phase === "picking" ||
-				game.phase === "reading" ||
-				game.phase === "buzz_open" ||
-				game.phase === "buzzed" ||
-				game.phase === "dd_wagering") && (
-				<section className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
+			{showBoard && (
+				<section className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2 sm:gap-3">
 					{game.board.map((cat) => (
-						<div key={cat.ref} className="space-y-2">
-							<div className="text-center font-heading font-bold text-xs sm:text-sm py-3 border rounded-md bg-card uppercase tracking-wide">
+						<div key={cat.ref} className="space-y-2 sm:space-y-3">
+							<div className="text-center font-heading font-bold text-[11px] sm:text-sm py-3 sm:py-4 px-2 border rounded-lg bg-gradient-to-b from-primary/15 to-card uppercase tracking-wider leading-tight min-h-[3.25rem] flex items-center justify-center">
 								{cat.title}
 							</div>
 							{cat.questions.map((q) => (
@@ -143,10 +208,10 @@ function HostPage() {
 										send({ type: "select_question", questionRef: q.ref });
 										send({ type: "open_question" });
 									}}
-									className={`w-full rounded-md border py-4 font-mono font-bold text-lg bg-card transition-all ${
+									className={`group w-full rounded-lg border py-4 sm:py-5 font-mono font-bold text-lg sm:text-2xl bg-gradient-to-br from-card to-input transition-all ${
 										q.closed
-											? "opacity-20 line-through text-muted-foreground"
-											: "score hover:bg-primary hover:text-primary-foreground hover:border-primary hover:shadow-[0_0_18px_var(--primary-glow)]"
+											? "opacity-15 line-through text-muted-foreground"
+											: "score hover:bg-primary hover:text-primary-foreground hover:from-primary hover:to-primary hover:border-primary hover:shadow-[0_0_24px_var(--primary-glow)] hover:scale-[1.02] active:scale-100"
 									} disabled:cursor-not-allowed`}
 								>
 									${q.pointValue}
@@ -158,20 +223,25 @@ function HostPage() {
 			)}
 
 			{game.phase === "dd_wagering" && ddPending && (
-				<section className="border rounded-2xl p-5 bg-card glow-primary text-center space-y-2">
-					<p className="text-xs font-semibold uppercase tracking-wider text-[color:var(--gold)]">
-						Daily Double
+				<section className="relative overflow-hidden border rounded-2xl p-6 bg-card text-center space-y-3 ring-1 ring-[color:var(--gold)]/40 shadow-[0_0_40px_var(--gold-dim)]">
+					<div
+						aria-hidden
+						className="pointer-events-none absolute inset-0 bg-gradient-to-br from-[color:var(--gold)]/5 via-transparent to-[color:var(--gold)]/10"
+					/>
+					<p className="relative text-xs font-semibold uppercase tracking-[0.3em] text-[color:var(--gold)]">
+						✦ Daily Double ✦
 					</p>
-					<p className="text-lg">
+					<p className="relative text-xl">
 						Waiting for{" "}
-						<strong>
+						<strong className="text-foreground">
 							{game.players.find((p) => p.id === ddPending.pickerId)
 								?.displayName ?? "picker"}
 						</strong>{" "}
 						to wager…
 					</p>
-					<p className="text-sm text-muted-foreground">
-						Range: ${ddPending.min} – ${ddPending.max}
+					<p className="relative text-sm text-muted-foreground font-mono">
+						Range: <span className="score">${ddPending.min}</span> –{" "}
+						<span className="score">${ddPending.max}</span>
 					</p>
 				</section>
 			)}
@@ -188,6 +258,7 @@ function HostPage() {
 						isDailyDouble={game.currentQuestion.isDailyDouble}
 						currentWager={game.currentWager}
 						buzzedName={buzzed?.displayName ?? null}
+						phase={game.phase}
 						onJudge={(verdict) => send({ type: "judge", verdict })}
 						onClose={() => send({ type: "close_question" })}
 					/>
@@ -206,36 +277,139 @@ function HostPage() {
 					/>
 				)}
 
-			{game.phase === "completed" && (
-				<section className="border rounded-2xl p-6 text-center space-y-4 bg-card glow-primary">
-					<h2 className="text-3xl font-heading font-bold">Game complete</h2>
-					<ol className="space-y-1 max-w-sm mx-auto">
-						{[...game.players]
-							.filter((p) => !p.isHost)
-							.sort((a, b) => b.score - a.score)
-							.map((p, i) => (
-								<li
-									key={p.id}
-									className="flex justify-between border-b border-border py-2"
-								>
-									<span>
-										<span className="text-muted-foreground mr-2">{i + 1}.</span>
-										{p.displayName}
-									</span>
-									<span className="score">${p.score}</span>
-								</li>
-							))}
-					</ol>
-					<Link
-						to="/games/$roomCode/result"
-						params={{ roomCode: game.roomCode }}
-						className="inline-block text-sm underline text-[color:var(--primary-bright)]"
-					>
-						Shareable results page →
-					</Link>
-				</section>
-			)}
+			{game.phase === "completed" && <CompletedView game={game} />}
 		</div>
+	);
+}
+
+function PhaseBadge({ phase }: { phase: string }) {
+	const isFinal = phase.startsWith("fj_");
+	const isLive =
+		phase === "buzz_open" || phase === "buzzed" || phase === "reading";
+	const dotClass = isFinal
+		? "bg-[color:var(--gold)] shadow-[0_0_8px_var(--gold)]"
+		: isLive
+			? "bg-[color:var(--primary-bright)] shadow-[0_0_8px_var(--primary-glow)] animate-pulse"
+			: "bg-muted-foreground/60";
+	return (
+		<span className="inline-flex items-center gap-2 text-sm font-medium">
+			<span className={`size-2 rounded-full ${dotClass}`} />
+			{PHASE_LABEL[phase] ?? phase}
+		</span>
+	);
+}
+
+type PlayerLite = import("server/src/game/protocol.ts").PlayerView;
+
+function RankedPlayers({
+	players,
+	currentPlayerId,
+	currentPickerId,
+}: {
+	players: PlayerLite[];
+	currentPlayerId: string | null;
+	currentPickerId: string | null;
+}) {
+	const itemRefs = useRef(new Map<string, HTMLLIElement>());
+	const prevRects = useRef(new Map<string, DOMRect>());
+	const prevRanks = useRef(new Map<string, number>());
+	const [rankedUp, setRankedUp] = useState<Set<string>>(new Set());
+
+	// FLIP: after each render, compare new positions with the ones we cached
+	// last render. If a card moved, instantly translate it back to its old
+	// spot, then clear the transform on the next frame so CSS animates it
+	// into the new position. Same trick used by every "list reorder" lib.
+	useLayoutEffect(() => {
+		const justRankedUp = new Set<string>();
+		const newRects = new Map<string, DOMRect>();
+		players.forEach((p, idx) => {
+			const el = itemRefs.current.get(p.id);
+			if (!el) return;
+			const newRect = el.getBoundingClientRect();
+			newRects.set(p.id, newRect);
+			const oldRect = prevRects.current.get(p.id);
+			if (oldRect) {
+				const dx = oldRect.left - newRect.left;
+				const dy = oldRect.top - newRect.top;
+				if (dx !== 0 || dy !== 0) {
+					el.style.transition = "none";
+					el.style.transform = `translate(${dx}px, ${dy}px)`;
+					// Force a reflow so the browser registers the start position
+					// before we kick off the transition back to (0, 0).
+					void el.getBoundingClientRect();
+					requestAnimationFrame(() => {
+						el.style.transition = "transform 360ms cubic-bezier(.2,.8,.2,1)";
+						el.style.transform = "";
+					});
+				}
+			}
+			const oldRank = prevRanks.current.get(p.id);
+			if (oldRank !== undefined && idx < oldRank) justRankedUp.add(p.id);
+			prevRanks.current.set(p.id, idx);
+		});
+		prevRects.current = newRects;
+
+		if (justRankedUp.size > 0) {
+			setRankedUp(justRankedUp);
+			const handle = setTimeout(() => setRankedUp(new Set()), 1200);
+			return () => clearTimeout(handle);
+		}
+	}, [players]);
+
+	return (
+		<ul className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2 sm:gap-3">
+			{players.map((p, idx) => {
+				const isLeader = idx === 0 && p.score > 0;
+				const isBuzzed = p.id === currentPlayerId;
+				const isPicker = p.id === currentPickerId;
+				const just = rankedUp.has(p.id);
+				return (
+					<li
+						key={p.id}
+						ref={(el) => {
+							if (el) itemRefs.current.set(p.id, el);
+							else itemRefs.current.delete(p.id);
+						}}
+						className={`relative rounded-xl border px-3 py-2.5 bg-input/60 will-change-transform transition-[border-color,box-shadow,background-color] ${
+							isBuzzed
+								? "border-primary glow-primary bg-primary/10"
+								: isLeader
+									? "border-[color:var(--gold)]/50"
+									: ""
+						} ${
+							isPicker ? "ring-2 ring-[color:var(--gold)]/50" : ""
+						} ${just ? "rank-up" : ""}`}
+					>
+						{isPicker && (
+							<span className="absolute -top-2 left-2 inline-flex items-center gap-1 rounded-full bg-[color:var(--gold)] px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider text-background">
+								Selecting
+							</span>
+						)}
+						<div className="flex items-baseline gap-1.5 mb-1">
+							<span
+								className={`text-[10px] font-bold tabular-nums ${
+									isLeader
+										? "text-[color:var(--gold)]"
+										: "text-muted-foreground"
+								}`}
+							>
+								{isLeader ? "🏆" : `#${idx + 1}`}
+							</span>
+							<span className="block truncate text-sm font-medium">
+								{p.displayName}
+							</span>
+						</div>
+						<div className="score text-sm sm:text-base tabular-nums">
+							{p.score < 0 ? (
+								<span className="text-destructive">-${Math.abs(p.score)}</span>
+							) : (
+								<>${p.score}</>
+							)}
+						</div>
+					</li>
+				);
+			})}
+		</ul>
 	);
 }
 
@@ -246,6 +420,7 @@ function QuestionModal({
 	isDailyDouble,
 	currentWager,
 	buzzedName,
+	phase,
 	onJudge,
 	onClose,
 }: {
@@ -255,76 +430,112 @@ function QuestionModal({
 	isDailyDouble: boolean;
 	currentWager: number | null;
 	buzzedName: string | null;
+	phase: string;
 	onJudge: (verdict: "correct" | "incorrect" | "no_answer") => void;
 	onClose: () => void;
 }) {
 	const [revealed, setRevealed] = useState(false);
+	const isBuzzOpen = phase === "buzz_open";
 
 	return (
 		<div
 			role="dialog"
 			aria-modal="true"
 			aria-label="Current question"
-			className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm"
+			className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/85 backdrop-blur-md animate-in fade-in duration-200"
 		>
-			<div className="w-full max-w-3xl border rounded-2xl p-6 sm:p-10 bg-card glow-primary space-y-6">
-				<p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground text-center">
-					<span className="score text-base">${currentWager ?? pointValue}</span>
-					{isDailyDouble && (
-						<span className="ml-2 text-[color:var(--gold)]">
-							· Daily Double (wager ${currentWager ?? "—"})
-						</span>
-					)}
-				</p>
+			<div
+				className={`relative w-full max-w-3xl border rounded-2xl bg-gradient-to-br from-card to-card/60 overflow-hidden ${
+					isDailyDouble
+						? "ring-2 ring-[color:var(--gold)]/50 shadow-[0_0_60px_var(--gold-dim)]"
+						: "glow-primary"
+				}`}
+			>
+				{/* decorative top stripe */}
+				<div
+					className={`h-1 w-full ${
+						isDailyDouble
+							? "bg-gradient-to-r from-transparent via-[color:var(--gold)] to-transparent"
+							: "bg-gradient-to-r from-transparent via-[color:var(--primary-bright)] to-transparent"
+					}`}
+				/>
 
-				<p className="text-2xl sm:text-4xl leading-snug text-center font-heading">
-					{clue}
-				</p>
+				<div className="p-6 sm:p-10 space-y-6">
+					<div className="flex items-center justify-center gap-3 text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">
+						{isDailyDouble ? (
+							<span className="text-[color:var(--gold)] flex items-center gap-2">
+								✦ Daily Double · Wager{" "}
+								<span className="score text-base">${currentWager ?? "—"}</span>{" "}
+								✦
+							</span>
+						) : (
+							<>
+								<span className="score text-lg">
+									${currentWager ?? pointValue}
+								</span>
+							</>
+						)}
+					</div>
 
-				<div className="border-t pt-4 space-y-2">
-					<p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground text-center">
-						Answer
+					<p className="text-2xl sm:text-4xl leading-snug text-center font-heading font-medium text-balance">
+						{clue}
 					</p>
-					{revealed ? (
-						<p className="text-xl sm:text-2xl text-center font-medium text-[color:var(--gold)]">
-							{answer}
+
+					<div className="border-t border-border/60 pt-5 space-y-3">
+						<p className="text-[10px] font-semibold uppercase tracking-[0.3em] text-muted-foreground text-center">
+							Answer
 						</p>
+						{revealed ? (
+							<p className="text-xl sm:text-2xl text-center font-medium text-[color:var(--gold)] animate-in fade-in slide-in-from-bottom-1 duration-300">
+								{answer}
+							</p>
+						) : (
+							<div className="flex justify-center">
+								<Button
+									variant="outline"
+									size="sm"
+									onClick={() => setRevealed(true)}
+								>
+									Reveal answer
+								</Button>
+							</div>
+						)}
+					</div>
+
+					{buzzedName ? (
+						<div className="space-y-3 border-t border-border/60 pt-5">
+							<p className="text-center text-base">
+								<strong className="text-[color:var(--primary-bright)]">
+									{buzzedName}
+								</strong>{" "}
+								<span className="text-muted-foreground">
+									{currentWager !== null ? "is answering." : "buzzed in."}
+								</span>
+							</p>
+							<div className="flex gap-2 flex-wrap justify-center">
+								<Button onClick={() => onJudge("correct")}>✓ Correct</Button>
+								<Button variant="outline" onClick={() => onJudge("incorrect")}>
+									✗ Incorrect
+								</Button>
+								<Button variant="outline" onClick={() => onJudge("no_answer")}>
+									No answer
+								</Button>
+							</div>
+						</div>
 					) : (
-						<div className="flex justify-center">
-							<Button
-								variant="outline"
-								size="sm"
-								onClick={() => setRevealed(true)}
-							>
-								Reveal answer
+						<div className="flex flex-col items-center gap-3 border-t border-border/60 pt-5">
+							{isBuzzOpen && (
+								<p className="text-xs text-muted-foreground flex items-center gap-2">
+									<span className="size-2 rounded-full bg-[color:var(--primary-bright)] animate-pulse" />
+									Buzzers open — waiting for a player
+								</p>
+							)}
+							<Button variant="outline" onClick={onClose}>
+								Close question
 							</Button>
 						</div>
 					)}
 				</div>
-
-				{buzzedName ? (
-					<div className="space-y-3 border-t pt-4">
-						<p className="text-center text-sm">
-							<strong>{buzzedName}</strong>{" "}
-							{currentWager !== null ? "is answering." : "buzzed in."}
-						</p>
-						<div className="flex gap-2 flex-wrap justify-center">
-							<Button onClick={() => onJudge("correct")}>Correct</Button>
-							<Button variant="outline" onClick={() => onJudge("incorrect")}>
-								Incorrect
-							</Button>
-							<Button variant="outline" onClick={() => onJudge("no_answer")}>
-								No answer
-							</Button>
-						</div>
-					</div>
-				) : (
-					<div className="flex justify-center border-t pt-4">
-						<Button variant="outline" onClick={onClose}>
-							Close question
-						</Button>
-					</div>
-				)}
 			</div>
 		</div>
 	);
@@ -341,16 +552,16 @@ function PickerOverride({
 }) {
 	return (
 		<select
-			aria-label="Set picker"
+			aria-label="Choose who selects the next question"
 			value={currentId ?? ""}
 			onChange={(e) => {
 				const v = e.target.value;
 				if (v) onPick(v);
 			}}
-			className="text-xs bg-input border rounded-md px-2 py-1 focus:outline-none focus:border-primary"
+			className="text-xs bg-input border rounded-md px-2.5 py-1.5 focus:outline-none focus:border-primary hover:border-primary/60 transition-colors cursor-pointer"
 		>
 			<option value="" disabled>
-				Set picker…
+				Who's selecting?
 			</option>
 			{players.map((p) => (
 				<option key={p.id} value={p.id}>
@@ -380,101 +591,138 @@ function FinalSection({
 		game.players.find((p) => p.id === id)?.displayName ?? id;
 
 	return (
-		<section className="border rounded-2xl p-5 bg-card glow-primary space-y-3">
-			<p className="text-xs font-semibold uppercase tracking-wider text-[color:var(--gold)]">
-				Final Jeopardy
-			</p>
-			<p className="text-lg font-heading font-bold">{fj.category}</p>
+		<section className="relative overflow-hidden border rounded-2xl p-6 bg-card ring-1 ring-[color:var(--gold)]/40 shadow-[0_0_40px_var(--gold-dim)] space-y-4">
+			<div
+				aria-hidden
+				className="pointer-events-none absolute inset-0 bg-gradient-to-br from-[color:var(--gold)]/5 via-transparent to-transparent"
+			/>
+			<div className="relative space-y-1">
+				<p className="text-[10px] font-semibold uppercase tracking-[0.3em] text-[color:var(--gold)]">
+					✦ Final Jeopardy ✦
+				</p>
+				<p className="text-2xl font-heading font-bold">{fj.category}</p>
+			</div>
 
 			{game.phase === "fj_wager" && (
-				<div>
-					<p className="text-sm">Waiting for wagers…</p>
-					<ul className="text-sm mt-2 space-y-1">
-						{eligiblePlayers.map((p) => (
-							<li key={p.id} className="flex justify-between">
-								<span>{p.displayName}</span>
-								<span
-									className={
-										fj.wagersSubmitted.includes(p.id)
-											? "text-[color:var(--gold)]"
-											: "text-muted-foreground"
-									}
+				<div className="relative">
+					<p className="text-sm text-muted-foreground mb-3">
+						Waiting for wagers…
+					</p>
+					<ul className="space-y-1.5">
+						{eligiblePlayers.map((p) => {
+							const ready = fj.wagersSubmitted.includes(p.id);
+							return (
+								<li
+									key={p.id}
+									className="flex items-center justify-between rounded-md bg-input/60 px-3 py-2 text-sm"
 								>
-									{fj.wagersSubmitted.includes(p.id) ? "ready ✓" : "waiting"}
-								</span>
-							</li>
-						))}
+									<span className="font-medium">{p.displayName}</span>
+									<span
+										className={
+											ready
+												? "text-[color:var(--gold)] font-medium"
+												: "text-muted-foreground"
+										}
+									>
+										{ready ? "✓ Ready" : "○ Waiting"}
+									</span>
+								</li>
+							);
+						})}
 					</ul>
 				</div>
 			)}
 
 			{game.phase === "fj_answer" && (
-				<div>
-					{fj.clue && <p className="text-base leading-snug">{fj.clue}</p>}
-					<ul className="text-sm mt-3 space-y-1">
-						{eligiblePlayers.map((p) => (
-							<li key={p.id} className="flex justify-between">
-								<span>{p.displayName}</span>
-								<span
-									className={
-										fj.answersSubmitted.includes(p.id)
-											? "text-[color:var(--gold)]"
-											: "text-muted-foreground"
-									}
+				<div className="relative space-y-3">
+					{fj.clue && (
+						<p className="text-lg font-heading leading-snug">{fj.clue}</p>
+					)}
+					<ul className="space-y-1.5">
+						{eligiblePlayers.map((p) => {
+							const ready = fj.answersSubmitted.includes(p.id);
+							return (
+								<li
+									key={p.id}
+									className="flex items-center justify-between rounded-md bg-input/60 px-3 py-2 text-sm"
 								>
-									{fj.answersSubmitted.includes(p.id)
-										? "answered ✓"
-										: "writing"}
-								</span>
-							</li>
-						))}
+									<span className="font-medium">{p.displayName}</span>
+									<span
+										className={
+											ready
+												? "text-[color:var(--gold)] font-medium"
+												: "text-muted-foreground"
+										}
+									>
+										{ready ? "✓ Answered" : "✎ Writing"}
+									</span>
+								</li>
+							);
+						})}
 					</ul>
 				</div>
 			)}
 
 			{game.phase === "fj_judging" && (
-				<div className="space-y-3">
+				<div className="relative space-y-4">
 					{fj.clue && (
-						<p className="text-sm text-muted-foreground italic">{fj.clue}</p>
+						<p className="text-base text-muted-foreground italic border-l-2 border-[color:var(--gold)]/40 pl-3">
+							{fj.clue}
+						</p>
 					)}
 					{fj.answer && (
 						<p className="text-sm">
-							<span className="text-muted-foreground">Correct: </span>
-							<span className="font-medium">{fj.answer}</span>
+							<span className="text-muted-foreground">Correct answer: </span>
+							<span className="font-medium text-[color:var(--gold)]">
+								{fj.answer}
+							</span>
 						</p>
 					)}
 					<ul className="space-y-3">
 						{fj.results.map((r) => (
 							<li
 								key={r.playerId}
-								className="border rounded-md p-3 bg-input space-y-2"
+								className="border rounded-xl p-4 bg-input/60 space-y-2.5"
 							>
-								<div className="flex justify-between text-sm">
-									<strong>{nameOf(r.playerId)}</strong>
+								<div className="flex items-baseline justify-between text-sm">
+									<strong className="text-base">{nameOf(r.playerId)}</strong>
 									<span className="score">wager ${r.wager}</span>
 								</div>
 								<p className="text-sm">
 									<span className="text-muted-foreground">Answer: </span>
-									{r.answer || <em className="text-muted-foreground">empty</em>}
+									{r.answer ? (
+										<span className="font-medium">{r.answer}</span>
+									) : (
+										<em className="text-muted-foreground">(empty)</em>
+									)}
 								</p>
 								{r.verdict ? (
 									<p className="text-xs text-muted-foreground">
-										Judged: <strong>{r.verdict}</strong>
+										Judged:{" "}
+										<strong
+											className={
+												r.verdict === "correct"
+													? "text-[color:var(--gold)]"
+													: "text-foreground"
+											}
+										>
+											{r.verdict}
+										</strong>
 									</p>
 								) : (
-									<div className="flex gap-2 flex-wrap">
+									<div className="flex gap-2 flex-wrap pt-1">
 										<Button
 											size="sm"
 											onClick={() => onJudge(r.playerId, "correct")}
 										>
-											Correct
+											✓ Correct
 										</Button>
 										<Button
 											size="sm"
 											variant="outline"
 											onClick={() => onJudge(r.playerId, "incorrect")}
 										>
-											Incorrect
+											✗ Incorrect
 										</Button>
 										<Button
 											size="sm"
@@ -490,6 +738,68 @@ function FinalSection({
 					</ul>
 				</div>
 			)}
+		</section>
+	);
+}
+
+function CompletedView({
+	game,
+}: {
+	game: import("server/src/game/protocol.ts").GameView;
+}) {
+	const ranked = [...game.players]
+		.filter((p) => !p.isHost)
+		.sort((a, b) => b.score - a.score);
+	const winner = ranked[0];
+
+	return (
+		<section className="relative overflow-hidden border rounded-2xl p-8 sm:p-10 text-center bg-card glow-primary space-y-6">
+			<div
+				aria-hidden
+				className="pointer-events-none absolute -top-32 left-1/2 -translate-x-1/2 size-96 rounded-full bg-primary/15 blur-3xl"
+			/>
+			<div className="relative space-y-2">
+				<p className="text-[10px] font-semibold uppercase tracking-[0.3em] text-muted-foreground">
+					Game complete
+				</p>
+				<h2 className="text-4xl sm:text-5xl font-heading font-black wordmark-accent">
+					{winner ? `${winner.displayName} wins!` : "Game over"}
+				</h2>
+				{winner && <p className="score text-2xl">${winner.score}</p>}
+			</div>
+			<ol className="relative space-y-1.5 max-w-md mx-auto text-left">
+				{ranked.map((p, i) => {
+					const medal = i === 0 ? "🥇" : i === 1 ? "🥈" : i === 2 ? "🥉" : null;
+					return (
+						<li
+							key={p.id}
+							className={`flex items-center justify-between rounded-lg px-4 py-3 ${
+								i === 0
+									? "bg-[color:var(--gold)]/10 border border-[color:var(--gold)]/30"
+									: "bg-input/60"
+							}`}
+						>
+							<span className="flex items-center gap-3">
+								<span className="text-muted-foreground tabular-nums w-6 text-sm">
+									{medal ?? `${i + 1}.`}
+								</span>
+								<span className="font-medium">{p.displayName}</span>
+							</span>
+							<span className="score">${p.score}</span>
+						</li>
+					);
+				})}
+			</ol>
+			<div className="relative">
+				<Link
+					to="/games/$roomCode/result"
+					params={{ roomCode: game.roomCode }}
+					className="inline-flex items-center gap-2 text-sm text-[color:var(--primary-bright)] hover:underline"
+				>
+					Shareable results page
+					<span aria-hidden>→</span>
+				</Link>
+			</div>
 		</section>
 	);
 }

@@ -209,4 +209,37 @@ body {
 		border-color: var(--border);
 		box-shadow: none;
 	}
+
+	/* Brief gold flash when a player overtakes someone in the standings. */
+	.rank-up {
+		animation: rank-up 1.1s ease-out;
+	}
+	@keyframes rank-up {
+		0% {
+			box-shadow: 0 0 0 0 var(--gold-dim);
+			background-color: var(--gold-dim);
+		}
+		100% {
+			box-shadow: 0 0 0 12px transparent;
+			background-color: var(--input);
+		}
+	}
+
+	/* Subtle pulse to draw the eye when the buzz window is open. */
+	.buzz-pulse {
+		animation: buzz-pulse 1.4s ease-in-out infinite;
+	}
+	@keyframes buzz-pulse {
+		0%,
+		100% {
+			box-shadow:
+				0 0 30px var(--primary-glow),
+				inset 0 -8px 0 oklch(0 0 0 / 20%);
+		}
+		50% {
+			box-shadow:
+				0 0 70px var(--primary-glow),
+				inset 0 -8px 0 oklch(0 0 0 / 20%);
+		}
+	}
 }

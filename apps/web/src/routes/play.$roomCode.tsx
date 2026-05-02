@@ -5,6 +5,9 @@ import { WagerInput } from "#/components/game/wager-input.tsx";
 import { Button } from "#/components/ui/button.tsx";
 import { useGameSocket } from "#/lib/game-socket.ts";
 
+type GameView = import("server/src/game/protocol.ts").GameView;
+type PlayerView = import("server/src/game/protocol.ts").PlayerView;
+
 export const Route = createFileRoute("/play/$roomCode")({
 	component: PlayPage,
 });
@@ -28,9 +31,27 @@ function PlayPage() {
 		}
 	}, [status, endCode, navigate, roomCode]);
 
+	// Track lockout for the current question across phase changes. The server
+	// only emits the error event once on the early buzz; we hold onto it until
+	// the question closes.
+	const [lockedOnQuestion, setLockedOnQuestion] = useState<string | null>(null);
+	useEffect(() => {
+		if (lastError?.code === "early_buzz" && game?.currentQuestion) {
+			setLockedOnQuestion(game.currentQuestion.ref);
+		}
+	}, [lastError, game?.currentQuestion]);
+	useEffect(() => {
+		if (
+			!game?.currentQuestion ||
+			(lockedOnQuestion && game.currentQuestion.ref !== lockedOnQuestion)
+		) {
+			setLockedOnQuestion(null);
+		}
+	}, [game?.currentQuestion, lockedOnQuestion]);
+
 	if (status === "ended" && endCode === 4403) {
 		return (
-			<div className="min-h-screen flex items-center justify-center text-sm text-muted-foreground">
+			<div className="min-h-[100dvh] flex items-center justify-center text-sm text-muted-foreground">
 				Redirecting to join…
 			</div>
 		);
@@ -38,7 +59,7 @@ function PlayPage() {
 
 	if (status === "ended") {
 		return (
-			<div className="min-h-screen flex flex-col items-center justify-center gap-3 p-4 text-center">
+			<div className="min-h-[100dvh] flex flex-col items-center justify-center gap-3 p-4 text-center">
 				<p className="text-lg font-medium">This game is no longer available.</p>
 				<p className="text-sm text-muted-foreground">
 					{endReason ?? "The host may have ended it or started a new one."}
@@ -55,15 +76,15 @@ function PlayPage() {
 
 	if (status !== "open" || !game) {
 		return (
-			<div className="min-h-screen flex items-center justify-center text-sm text-muted-foreground">
+			<div className="min-h-[100dvh] flex items-center justify-center text-sm text-muted-foreground">
 				{status === "closed" ? "Reconnecting…" : "Connecting…"}
 			</div>
 		);
 	}
 
-	const me = game.players.find((p) => p.id === selfId);
+	const me = game.players.find((p) => p.id === selfId) ?? null;
 	const buzzedPlayer = game.currentPlayerId
-		? game.players.find((p) => p.id === game.currentPlayerId)
+		? (game.players.find((p) => p.id === game.currentPlayerId) ?? null)
 		: null;
 
 	const isDDPicker =
@@ -79,54 +100,38 @@ function PlayPage() {
 		game.phase === "fj_answer" ||
 		game.phase === "fj_judging";
 
-	const canBuzz = game.phase === "buzz_open" && !isDDOther;
+	const lockedOut =
+		lockedOnQuestion !== null && game.currentQuestion?.ref === lockedOnQuestion;
+
+	const canBuzz = game.phase === "buzz_open" && !isDDOther && !lockedOut;
+
+	const activeCategory = game.currentQuestion
+		? (game.board.find((c) => c.ref === game.currentQuestion?.categoryRef)
+				?.title ?? null)
+		: null;
 
 	return (
-		<div className="min-h-[100dvh] flex flex-col p-4 gap-4 max-w-md mx-auto w-full">
-			<header className="flex items-center justify-between">
-				<span className="text-xs uppercase tracking-wider text-muted-foreground">
-					Room{" "}
-					<span className="room-code text-foreground ml-1">
-						{game.roomCode}
-					</span>
-				</span>
-				<span className="text-sm">
-					You: <strong>{me?.displayName ?? "—"}</strong>{" "}
-					<span className="score ml-1">${me?.score ?? 0}</span>
-				</span>
-			</header>
+		<div className="min-h-[100dvh] flex flex-col gap-4 max-w-md mx-auto w-full px-4 pt-4 pb-6">
+			<HeaderBar roomCode={game.roomCode} me={me} />
 
-			<section className="border rounded-2xl p-3 space-y-2 bg-card">
-				<h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-					Players
-				</h2>
-				<ul className="grid grid-cols-2 gap-2 text-sm">
-					{game.players
-						.filter((p) => !p.isHost)
-						.map((p) => (
-							<li
-								key={p.id}
-								className={`rounded-md border px-2 py-1 bg-input transition-colors ${
-									p.id === game.currentPlayerId
-										? "border-primary glow-primary"
-										: ""
-								} ${p.id === game.currentPickerId ? "ring-2 ring-[color:var(--gold)]/50" : ""}`}
-							>
-								<span className="block font-medium truncate">
-									{p.displayName}
-									{p.id === game.currentPickerId && (
-										<span className="ml-1 text-[color:var(--gold)]">★</span>
-									)}
-								</span>
-								<span className="score text-xs">${p.score}</span>
-							</li>
-						))}
-				</ul>
-			</section>
+			<StatusBanner
+				phase={game.phase}
+				isPicker={game.currentPickerId === selfId}
+				buzzedName={buzzedPlayer?.displayName ?? null}
+				ddOther={isDDOther}
+				lockedOut={lockedOut}
+			/>
+
+			<PlayersStrip
+				players={game.players.filter((p) => !p.isHost)}
+				selfId={selfId}
+				currentPlayerId={game.currentPlayerId}
+				currentPickerId={game.currentPickerId}
+			/>
 
 			{isDDPicker && ddPending && (
 				<section className="border rounded-2xl p-4 space-y-3 bg-card glow-primary">
-					<p className="text-xs font-semibold uppercase tracking-wider text-[color:var(--gold)]">
+					<p className="text-xs font-semibold uppercase tracking-wider text-[color:var(--gold)] text-center">
 						Daily Double — your wager
 					</p>
 					<WagerInput
@@ -139,38 +144,17 @@ function PlayPage() {
 				</section>
 			)}
 
-			{isDDOther && (
-				<section className="border rounded-2xl p-4 bg-card text-center">
-					<p className="text-sm text-muted-foreground">
-						Daily Double — only the picker plays this one.
-					</p>
-				</section>
-			)}
-
 			{(game.phase === "reading" ||
 				game.phase === "buzz_open" ||
 				game.phase === "buzzed") &&
 				game.currentQuestion && (
-					<section className="border rounded-2xl p-4 space-y-3 bg-card glow-primary">
-						<p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-							<span className="score">
-								${game.currentWager ?? game.currentQuestion.pointValue}
-							</span>
-							{game.currentQuestion.isDailyDouble &&
-								` · Daily Double (wager $${game.currentWager ?? "—"})`}
-						</p>
-						<p className="text-xl leading-snug font-medium">
-							{game.currentQuestion.clue}
-						</p>
-						{buzzedPlayer && (
-							<p className="text-sm text-muted-foreground">
-								<strong className="text-foreground">
-									{buzzedPlayer.displayName}
-								</strong>{" "}
-								{game.currentWager !== null ? "is answering." : "buzzed in."}
-							</p>
-						)}
-					</section>
+					<ClueCard
+						category={activeCategory}
+						pointValue={game.currentQuestion.pointValue}
+						isDailyDouble={game.currentQuestion.isDailyDouble}
+						currentWager={game.currentWager}
+						clue={game.currentQuestion.clue}
+					/>
 				)}
 
 			{fjPhase && game.finalJeopardy && (
@@ -183,51 +167,295 @@ function PlayPage() {
 				/>
 			)}
 
-			{game.phase === "lobby" && (
-				<p className="text-center text-sm text-muted-foreground">
-					Waiting for the host to start…
-				</p>
-			)}
-			{game.phase === "picking" && (
-				<p className="text-center text-sm text-muted-foreground">
-					{game.currentPickerId === selfId
-						? "Your turn — host will pick a question on the board."
-						: "Host is picking the next question…"}
-				</p>
-			)}
 			{game.phase === "completed" && (
-				<div className="text-center space-y-2">
-					<p className="text-base font-medium">Game over.</p>
+				<section className="border rounded-2xl p-6 text-center space-y-3 bg-card glow-primary">
+					<p className="text-xs font-semibold uppercase tracking-wider text-[color:var(--gold)]">
+						Game over
+					</p>
+					<p className="text-3xl font-heading font-bold">
+						<span className="score">${me?.score ?? 0}</span>
+					</p>
 					<Link
 						to="/games/$roomCode/result"
 						params={{ roomCode: game.roomCode }}
 						className="inline-block text-sm underline text-[color:var(--primary-bright)]"
 					>
-						See results →
+						See full results →
 					</Link>
-				</div>
+				</section>
 			)}
 
 			<div className="flex-1" />
 
-			{!fjPhase && !isDDPicker && !isDDOther && (
-				<button
-					type="button"
-					aria-label="Buzz"
-					onClick={() => send({ type: "buzz" })}
-					disabled={!canBuzz}
-					className="buzz w-full rounded-3xl font-heading font-bold text-3xl tracking-wider py-14"
-				>
-					BUZZ
-				</button>
+			{!fjPhase && !isDDPicker && !isDDOther && game.phase !== "completed" && (
+				<BuzzControl
+					canBuzz={canBuzz}
+					lockedOut={lockedOut}
+					onBuzz={() => send({ type: "buzz" })}
+				/>
 			)}
 
-			{lastError && (
+			{lastError && lastError.code !== "early_buzz" && (
 				<p className="text-center text-xs text-destructive">
 					{lastError.message}
 				</p>
 			)}
 		</div>
+	);
+}
+
+function HeaderBar({
+	roomCode,
+	me,
+}: {
+	roomCode: string;
+	me: PlayerView | null;
+}) {
+	const initials = me?.displayName
+		? me.displayName
+				.split(/\s+/)
+				.map((s) => s[0])
+				.filter(Boolean)
+				.slice(0, 2)
+				.join("")
+				.toUpperCase()
+		: "?";
+	return (
+		<header className="flex items-center justify-between gap-3">
+			<div className="space-y-0.5">
+				<p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
+					Room
+				</p>
+				<p className="room-code text-2xl text-foreground leading-none">
+					{roomCode}
+				</p>
+			</div>
+			<div className="flex items-center gap-2 rounded-full border bg-card pl-1 pr-3 py-1 glow-primary/0">
+				<div className="w-9 h-9 rounded-full bg-primary/15 border border-primary/40 flex items-center justify-center text-sm font-bold font-heading">
+					{initials}
+				</div>
+				<div className="flex flex-col items-end leading-tight">
+					<span className="text-xs text-muted-foreground truncate max-w-[10ch]">
+						{me?.displayName ?? "—"}
+					</span>
+					<span className="score text-base">${me?.score ?? 0}</span>
+				</div>
+			</div>
+		</header>
+	);
+}
+
+function StatusBanner({
+	phase,
+	isPicker,
+	buzzedName,
+	ddOther,
+	lockedOut,
+}: {
+	phase: GameView["phase"];
+	isPicker: boolean;
+	buzzedName: string | null;
+	ddOther: boolean;
+	lockedOut: boolean;
+}) {
+	const { label, tone } = bannerContent({
+		phase,
+		isPicker,
+		buzzedName,
+		ddOther,
+		lockedOut,
+	});
+
+	const toneClasses =
+		tone === "primary"
+			? "border-primary/60 text-foreground glow-primary"
+			: tone === "gold"
+				? "border-[color:var(--gold)]/60 text-[color:var(--gold)]"
+				: tone === "danger"
+					? "border-destructive/60 text-destructive"
+					: "border-border text-muted-foreground";
+
+	return (
+		<div
+			className={`rounded-full border bg-card/60 backdrop-blur-sm px-4 py-2 text-center text-sm font-medium uppercase tracking-wider ${toneClasses}`}
+		>
+			{label}
+		</div>
+	);
+}
+
+function bannerContent({
+	phase,
+	isPicker,
+	buzzedName,
+	ddOther,
+	lockedOut,
+}: {
+	phase: GameView["phase"];
+	isPicker: boolean;
+	buzzedName: string | null;
+	ddOther: boolean;
+	lockedOut: boolean;
+}): { label: string; tone: "primary" | "gold" | "danger" | "muted" } {
+	if (phase === "lobby")
+		return { label: "Waiting for the host to start", tone: "muted" };
+	if (phase === "picking")
+		return isPicker
+			? { label: "★ Your pick", tone: "gold" }
+			: { label: "Picking next clue…", tone: "muted" };
+	if (phase === "reading")
+		return lockedOut
+			? { label: "Buzzed too early — locked out", tone: "danger" }
+			: { label: "Get ready…", tone: "muted" };
+	if (phase === "buzz_open")
+		return lockedOut
+			? { label: "Locked out", tone: "danger" }
+			: { label: "Buzz now!", tone: "primary" };
+	if (phase === "buzzed")
+		return {
+			label: buzzedName ? `${buzzedName} buzzed in` : "Buzzed in",
+			tone: "primary",
+		};
+	if (phase === "dd_wagering")
+		return ddOther
+			? { label: "Daily Double — picker only", tone: "gold" }
+			: { label: "Daily Double — your wager", tone: "gold" };
+	if (phase === "fj_wager")
+		return { label: "Final Jeopardy — wager", tone: "gold" };
+	if (phase === "fj_answer")
+		return { label: "Final Jeopardy — your answer", tone: "gold" };
+	if (phase === "fj_judging")
+		return { label: "Host is judging…", tone: "muted" };
+	if (phase === "completed") return { label: "Game over", tone: "gold" };
+	return { label: phase, tone: "muted" };
+}
+
+function PlayersStrip({
+	players,
+	selfId,
+	currentPlayerId,
+	currentPickerId,
+}: {
+	players: PlayerView[];
+	selfId: string | null;
+	currentPlayerId: string | null;
+	currentPickerId: string | null;
+}) {
+	return (
+		<section className="rounded-2xl border bg-card p-3">
+			<ul className="grid grid-cols-2 gap-2">
+				{players.map((p) => {
+					const isMe = p.id === selfId;
+					const isBuzzed = p.id === currentPlayerId;
+					const isPicker = p.id === currentPickerId;
+					const offline = p.status !== "joined";
+					const initials = p.displayName
+						.split(/\s+/)
+						.map((s) => s[0])
+						.filter(Boolean)
+						.slice(0, 2)
+						.join("")
+						.toUpperCase();
+					return (
+						<li
+							key={p.id}
+							className={`relative flex items-center gap-2 rounded-xl border bg-input px-2 py-1.5 transition-all ${
+								isBuzzed
+									? "border-primary glow-primary"
+									: isPicker
+										? "border-[color:var(--gold)]/60"
+										: "border-border"
+							} ${offline ? "opacity-50" : ""}`}
+						>
+							<div
+								className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold font-heading shrink-0 ${
+									isMe
+										? "bg-primary/25 border border-primary/60"
+										: "bg-muted/40 border border-border"
+								}`}
+							>
+								{initials || "?"}
+							</div>
+							<div className="min-w-0 flex-1">
+								<div className="flex items-center gap-1">
+									<span className="text-xs font-medium truncate">
+										{p.displayName}
+									</span>
+									{isPicker && (
+										<span className="text-[10px] text-[color:var(--gold)] shrink-0">
+											★
+										</span>
+									)}
+								</div>
+								<span className="score text-xs">${p.score}</span>
+							</div>
+						</li>
+					);
+				})}
+			</ul>
+		</section>
+	);
+}
+
+function ClueCard({
+	category,
+	pointValue,
+	isDailyDouble,
+	currentWager,
+	clue,
+}: {
+	category: string | null;
+	pointValue: number;
+	isDailyDouble: boolean;
+	currentWager: number | null;
+	clue: string;
+}) {
+	const stake = currentWager ?? pointValue;
+	return (
+		<section className="border rounded-2xl bg-card glow-primary overflow-hidden">
+			<div className="flex items-center justify-between gap-2 px-4 py-2 border-b border-border/60 bg-background/40">
+				<p className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground truncate">
+					{category ?? "Clue"}
+				</p>
+				<div className="flex items-center gap-2 shrink-0">
+					{isDailyDouble && (
+						<span className="text-[10px] font-bold uppercase tracking-wider text-[color:var(--gold)]">
+							Daily Double
+						</span>
+					)}
+					<span className="score text-sm font-bold rounded-md border border-[color:var(--gold)]/50 px-2 py-0.5">
+						${stake}
+					</span>
+				</div>
+			</div>
+			<p className="px-4 py-5 text-xl leading-snug font-medium text-center">
+				{clue}
+			</p>
+		</section>
+	);
+}
+
+function BuzzControl({
+	canBuzz,
+	lockedOut,
+	onBuzz,
+}: {
+	canBuzz: boolean;
+	lockedOut: boolean;
+	onBuzz: () => void;
+}) {
+	return (
+		<button
+			type="button"
+			aria-label="Buzz"
+			onClick={onBuzz}
+			disabled={!canBuzz}
+			className={`buzz w-full rounded-3xl font-heading font-bold text-3xl tracking-widest py-16 select-none ${
+				canBuzz ? "buzz-pulse" : ""
+			}`}
+		>
+			{lockedOut ? "LOCKED" : "BUZZ"}
+		</button>
 	);
 }
 
@@ -238,7 +466,7 @@ function FinalPlayer({
 	onWager,
 	onAnswer,
 }: {
-	game: import("server/src/game/protocol.ts").GameView;
+	game: GameView;
 	selfId: string | null;
 	inFJ: boolean;
 	onWager: (amount: number) => void;
@@ -256,7 +484,7 @@ function FinalPlayer({
 				<p className="text-sm text-muted-foreground">
 					You're sitting this one out (score ≤ 0).
 				</p>
-				<p className="text-sm font-heading">{fj.category}</p>
+				<p className="text-base font-heading font-bold">{fj.category}</p>
 			</section>
 		);
 	}
@@ -266,10 +494,12 @@ function FinalPlayer({
 
 	return (
 		<section className="border rounded-2xl p-4 bg-card glow-primary space-y-3">
-			<p className="text-xs font-semibold uppercase tracking-wider text-[color:var(--gold)]">
+			<p className="text-xs font-semibold uppercase tracking-wider text-[color:var(--gold)] text-center">
 				Final Jeopardy
 			</p>
-			<p className="text-base font-heading font-bold">{fj.category}</p>
+			<p className="text-base font-heading font-bold text-center">
+				{fj.category}
+			</p>
 
 			{game.phase === "fj_wager" &&
 				selfId !== null &&
