@@ -26,7 +26,7 @@ export function useGameSocket(roomCode: string) {
 			setStatus("connecting");
 
 			ws.addEventListener("open", () => {
-				if (cancelled) {
+				if (cancelled || wsRef.current !== ws) {
 					ws.close();
 					return;
 				}
@@ -35,6 +35,7 @@ export function useGameSocket(roomCode: string) {
 			});
 
 			ws.addEventListener("message", (ev) => {
+				if (wsRef.current !== ws) return;
 				try {
 					const msg = JSON.parse(String(ev.data)) as ServerToClient;
 					store.getState().apply(msg);
@@ -44,15 +45,19 @@ export function useGameSocket(roomCode: string) {
 			});
 
 			ws.addEventListener("close", () => {
+				// Only react if this ws is still the "current" one. Otherwise this
+				// is a stale socket (e.g. closed by StrictMode's double-mount) and
+				// we must not clobber refs/status that belong to a newer one.
+				if (wsRef.current !== ws) return;
 				wsRef.current = null;
 				setStatus("closed");
 				if (cancelled) return;
-				// Exponential-ish backoff up to 10s.
 				const delay = Math.min(10_000, 500 * 2 ** attempt++);
 				timer = setTimeout(connect, delay);
 			});
 
 			ws.addEventListener("error", () => {
+				if (wsRef.current !== ws) return;
 				setStatus("error");
 			});
 		}

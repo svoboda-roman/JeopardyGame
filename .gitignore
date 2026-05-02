@@ -42,3 +42,9 @@ routeTree.gen.ts
 
 # Vite build output
 apps/web/dist
+
+# Playwright
+test-results
+playwright-report
+blob-report
+.cache/ms-playwright

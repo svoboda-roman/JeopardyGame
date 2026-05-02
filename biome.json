@@ -7,7 +7,14 @@
 	},
 	"files": {
 		"ignoreUnknown": false,
-		"includes": ["**", "!**/drizzle", "!**/routeTree.gen.ts"]
+		"includes": [
+			"**",
+			"!**/drizzle",
+			"!**/routeTree.gen.ts",
+			"!**/.claude",
+			"!**/test-results",
+			"!**/playwright-report"
+		]
 	},
 	"formatter": {
 		"enabled": true,
@@ -39,7 +46,7 @@
 	},
 	"overrides": [
 		{
-			"includes": ["**/test/**", "**/*.test.ts", "**/*.test.tsx"],
+			"includes": ["**/test/**", "**/*.test.ts", "**/*.test.tsx", "**/e2e/**"],
 			"linter": {
 				"rules": {
 					"style": {
