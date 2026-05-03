@@ -3,6 +3,7 @@ import { HugeiconsIcon } from "@hugeicons/react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useId, useRef, useState } from "react";
+import { MediaPicker, type PickedMedia } from "#/components/MediaPicker.tsx";
 import { Button } from "#/components/ui/button.tsx";
 import { api } from "#/lib/api.ts";
 
@@ -31,6 +32,7 @@ interface Question {
 	isDailyDouble: boolean;
 	clue: string;
 	answer: string;
+	media: PickedMedia[];
 }
 interface QuizDetail {
 	quiz: Quiz;
@@ -285,6 +287,7 @@ function QuestionEditor({
 	const [answer, setAnswer] = useState(question.answer);
 	const [pointValue, setPointValue] = useState(question.pointValue);
 	const [isDD, setIsDD] = useState(question.isDailyDouble);
+	const [media, setMedia] = useState<PickedMedia[]>(question.media ?? []);
 	const [savedAt, setSavedAt] = useState<number | null>(null);
 	const clueId = useId();
 	const answerId = useId();
@@ -302,20 +305,30 @@ function QuestionEditor({
 	// Debounced save: 500ms after last change.
 	useEffect(() => {
 		const handle = setTimeout(async () => {
+			const prevMediaIds = (question.media ?? []).map((m) => m.id);
+			const nextMediaIds = media.map((m) => m.id);
+			const mediaChanged =
+				prevMediaIds.length !== nextMediaIds.length ||
+				prevMediaIds.some((id, i) => id !== nextMediaIds[i]);
 			const changed =
 				clue !== question.clue ||
 				answer !== question.answer ||
 				pointValue !== question.pointValue ||
-				isDD !== question.isDailyDouble;
+				isDD !== question.isDailyDouble ||
+				mediaChanged;
 			if (!changed) return;
-			await api
-				.questions({ id: question.id })
-				.patch({ clue, answer, pointValue, isDailyDouble: isDD });
+			await api.questions({ id: question.id }).patch({
+				clue,
+				answer,
+				pointValue,
+				isDailyDouble: isDD,
+				...(mediaChanged ? { mediaIds: nextMediaIds } : {}),
+			});
 			await qc.invalidateQueries({ queryKey: ["quiz", quizId] });
 			setSavedAt(Date.now());
 		}, 500);
 		return () => clearTimeout(handle);
-	}, [clue, answer, pointValue, isDD, question, qc, quizId]);
+	}, [clue, answer, pointValue, isDD, media, question, qc, quizId]);
 
 	return (
 		<div
@@ -342,7 +355,7 @@ function QuestionEditor({
 				</header>
 				<div className="space-y-1">
 					<label htmlFor={clueId} className="text-sm">
-						Clue
+						Question
 					</label>
 					<textarea
 						id={clueId}
@@ -352,6 +365,10 @@ function QuestionEditor({
 						rows={3}
 						className="w-full rounded-md border bg-background px-2 py-1"
 					/>
+				</div>
+				<div className="space-y-1">
+					<span className="text-sm">Pictures</span>
+					<MediaPicker value={media} onChange={setMedia} />
 				</div>
 				<div className="space-y-1">
 					<label htmlFor={answerId} className="text-sm">
@@ -504,7 +521,7 @@ function HostButton({ quizId }: { quizId: string }) {
 								className="w-full rounded-md border bg-input px-3 py-2 focus:outline-none focus:border-primary focus:ring-3 focus:ring-ring/40"
 							/>
 							<p className="text-xs text-muted-foreground">
-								Time before buzzers open after the host opens a clue.
+								Time before buzzers open after the host opens a question.
 							</p>
 						</div>
 						<div className="flex gap-2 justify-end">

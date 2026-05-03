@@ -151,6 +151,40 @@ export const question = pgTable(
 	(t) => [unique("question_category_position_uk").on(t.categoryId, t.position)],
 );
 
+export const media = pgTable(
+	"media",
+	{
+		id: text("id").primaryKey().$defaultFn(uuid),
+		ownerId: text("owner_id")
+			.notNull()
+			.references(() => user.id, { onDelete: "cascade" }),
+		storageKey: text("storage_key").notNull(),
+		mime: text("mime").notNull(),
+		byteSize: integer("byte_size").notNull(),
+		createdAt: timestamp("created_at", { withTimezone: true })
+			.notNull()
+			.defaultNow(),
+	},
+	(t) => [index("media_owner_idx").on(t.ownerId)],
+);
+
+export const questionMedia = pgTable(
+	"question_media",
+	{
+		questionId: text("question_id")
+			.notNull()
+			.references(() => question.id, { onDelete: "cascade" }),
+		mediaId: text("media_id")
+			.notNull()
+			.references(() => media.id, { onDelete: "cascade" }),
+		position: integer("position").notNull(),
+	},
+	(t) => [
+		unique("question_media_pk").on(t.questionId, t.mediaId),
+		unique("question_media_position_uk").on(t.questionId, t.position),
+	],
+);
+
 export const finalQuestion = pgTable("final_question", {
 	id: text("id").primaryKey().$defaultFn(uuid),
 	quizId: text("quiz_id")
@@ -300,6 +334,8 @@ export type UserProfile = typeof userProfile.$inferSelect;
 export type Quiz = typeof quiz.$inferSelect;
 export type Category = typeof category.$inferSelect;
 export type Question = typeof question.$inferSelect;
+export type Media = typeof media.$inferSelect;
+export type QuestionMedia = typeof questionMedia.$inferSelect;
 export type FinalQuestion = typeof finalQuestion.$inferSelect;
 export type QuizShare = typeof quizShare.$inferSelect;
 export type Game = typeof game.$inferSelect;

@@ -24,6 +24,12 @@ export interface PlayerView {
 	isHost: boolean;
 }
 
+export interface QuestionMediaView {
+	id: string;
+	mime: string;
+	url: string;
+}
+
 export interface QuestionView {
 	ref: string; // id within the snapshot
 	categoryRef: string;
@@ -31,6 +37,7 @@ export interface QuestionView {
 	isDailyDouble: boolean;
 	clue: string;
 	answer: string;
+	media: QuestionMediaView[];
 }
 
 export interface BoardCategoryView {

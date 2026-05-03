@@ -74,6 +74,7 @@ describe("game store reducer", () => {
 				isDailyDouble: false,
 				clue: "A clue",
 				answer: "An answer",
+				media: [],
 			},
 			opensBuzzAt: "2026-04-30T05:00:00.000Z",
 		});
@@ -117,6 +118,7 @@ describe("game store reducer", () => {
 				isDailyDouble: false,
 				clue: "A",
 				answer: "a",
+				media: [],
 			},
 			opensBuzzAt: "x",
 		});
@@ -166,6 +168,7 @@ describe("game store reducer", () => {
 				isDailyDouble: true,
 				clue: "DD clue",
 				answer: "DD answer",
+				media: [],
 			},
 			wager: 500,
 			pickerId: "p1",

@@ -3,6 +3,7 @@ import { useEffect, useId, useState } from "react";
 import { useStore } from "zustand";
 import { WagerInput } from "#/components/game/wager-input.tsx";
 import { Button } from "#/components/ui/button.tsx";
+import { apiUrl } from "#/lib/api.ts";
 import { useGameSocket } from "#/lib/game-socket.ts";
 
 type GameView = import("server/src/game/protocol.ts").GameView;
@@ -154,6 +155,7 @@ function PlayPage() {
 						isDailyDouble={game.currentQuestion.isDailyDouble}
 						currentWager={game.currentWager}
 						clue={game.currentQuestion.clue}
+						media={game.currentQuestion.media ?? []}
 					/>
 				)}
 
@@ -403,19 +405,21 @@ function ClueCard({
 	isDailyDouble,
 	currentWager,
 	clue,
+	media,
 }: {
 	category: string | null;
 	pointValue: number;
 	isDailyDouble: boolean;
 	currentWager: number | null;
 	clue: string;
+	media: { id: string; mime: string; url: string }[];
 }) {
 	const stake = currentWager ?? pointValue;
 	return (
 		<section className="border rounded-2xl bg-card glow-primary overflow-hidden">
 			<div className="flex items-center justify-between gap-2 px-4 py-2 border-b border-border/60 bg-background/40">
 				<p className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground truncate">
-					{category ?? "Clue"}
+					{category ?? "Question"}
 				</p>
 				<div className="flex items-center gap-2 shrink-0">
 					{isDailyDouble && (
@@ -428,6 +432,18 @@ function ClueCard({
 					</span>
 				</div>
 			</div>
+			{media.length > 0 && (
+				<div className="px-4 pt-4 flex flex-wrap justify-center gap-2">
+					{media.map((m) => (
+						<img
+							key={m.id}
+							src={apiUrl(m.url)}
+							alt=""
+							className="max-h-56 rounded-md border"
+						/>
+					))}
+				</div>
+			)}
 			<p className="px-4 py-5 text-xl leading-snug font-medium text-center">
 				{clue}
 			</p>

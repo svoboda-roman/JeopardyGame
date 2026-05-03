@@ -25,6 +25,7 @@ function tinyBoard(): InternalBoard {
 				isDailyDouble: false,
 				clue: "clue 1",
 				answer: "answer 1",
+				media: [],
 			},
 			q2: {
 				ref: "q2",
@@ -34,6 +35,7 @@ function tinyBoard(): InternalBoard {
 				isDailyDouble: false,
 				clue: "clue 2",
 				answer: "answer 2",
+				media: [],
 			},
 		},
 	};

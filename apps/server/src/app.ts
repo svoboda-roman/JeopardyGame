@@ -5,6 +5,7 @@ import { auth } from "./auth.ts";
 import { env } from "./env.ts";
 import { games } from "./routes/games.ts";
 import { gamesWs } from "./routes/games-ws.ts";
+import { mediaRoutes } from "./routes/media.ts";
 import { quizzes } from "./routes/quizzes.ts";
 import { share } from "./routes/share.ts";
 
@@ -60,6 +61,7 @@ export const app = new Elysia()
 		{ detail: { tags: ["auth"] } },
 	)
 	.use(quizzes)
+	.use(mediaRoutes)
 	.use(share)
 	.use(games)
 	.use(gamesWs);

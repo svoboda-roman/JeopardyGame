@@ -3,6 +3,7 @@ import type {
 	GameView,
 	Phase,
 	PlayerView,
+	QuestionMediaView,
 	ServerToClient,
 } from "./protocol.ts";
 
@@ -31,6 +32,7 @@ export interface InternalQuestion {
 	isDailyDouble: boolean;
 	clue: string;
 	answer: string;
+	media: QuestionMediaView[];
 }
 
 export interface InternalBoard {
@@ -469,6 +471,7 @@ export function transition(state: GameState, intent: Intent): TransitionResult {
 						isDailyDouble: q.isDailyDouble,
 						clue: q.clue,
 						answer: q.answer,
+						media: q.media,
 					},
 					opensBuzzAt: new Date(buzzOpensAtMs).toISOString(),
 				},
@@ -676,6 +679,7 @@ export function transition(state: GameState, intent: Intent): TransitionResult {
 						isDailyDouble: q.isDailyDouble,
 						clue: q.clue,
 						answer: q.answer,
+						media: q.media,
 					},
 					wager: intent.amount,
 					pickerId: intent.actorId,

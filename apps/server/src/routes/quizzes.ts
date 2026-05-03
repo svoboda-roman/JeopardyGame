@@ -4,12 +4,16 @@ import { db } from "../db/client.ts";
 import {
 	category as categoryTable,
 	finalQuestion as finalQuestionTable,
+	media as mediaTable,
+	questionMedia as questionMediaTable,
 	question as questionTable,
 	quizShare as quizShareTable,
 	quiz as quizTable,
 } from "../db/schema.ts";
 import { HttpError, notFound, requireUser } from "../lib/auth-helpers.ts";
 import { generateShareToken } from "../lib/share-token.ts";
+
+const MAX_MEDIA_PER_QUESTION = 6;
 
 const POINT_VALUES = [100, 200, 300, 400, 500] as const;
 
@@ -136,13 +140,43 @@ export const quizzes = new Elysia({ tags: ["quizzes"] })
 			.where(eq(categoryTable.quizId, q.id))
 			.orderBy(asc(categoryTable.position));
 		const catIds = cats.map((c) => c.id);
-		const questions = catIds.length
+		const questionRows = catIds.length
 			? await db
 					.select()
 					.from(questionTable)
 					.where(inArray(questionTable.categoryId, catIds))
 					.orderBy(asc(questionTable.position))
 			: [];
+
+		const qIds = questionRows.map((q) => q.id);
+		const mediaJoins = qIds.length
+			? await db
+					.select({
+						questionId: questionMediaTable.questionId,
+						position: questionMediaTable.position,
+						id: mediaTable.id,
+						mime: mediaTable.mime,
+					})
+					.from(questionMediaTable)
+					.innerJoin(mediaTable, eq(mediaTable.id, questionMediaTable.mediaId))
+					.where(inArray(questionMediaTable.questionId, qIds))
+					.orderBy(asc(questionMediaTable.position))
+			: [];
+
+		const mediaByQ: Record<
+			string,
+			{ id: string; mime: string; url: string }[]
+		> = {};
+		for (const m of mediaJoins) {
+			const list = mediaByQ[m.questionId] ?? [];
+			list.push({ id: m.id, mime: m.mime, url: `/media/${m.id}/file` });
+			mediaByQ[m.questionId] = list;
+		}
+
+		const questions = questionRows.map((q) => ({
+			...q,
+			media: mediaByQ[q.id] ?? [],
+		}));
 
 		const final = (
 			await db
@@ -293,9 +327,28 @@ export const quizzes = new Elysia({ tags: ["quizzes"] })
 		async ({ request, params, body }) => {
 			const u = await requireUser(request);
 			await ownedQuestion(params.id, u.id);
-			const [updated] = await db
-				.update(questionTable)
-				.set({
+
+			if (body.mediaIds !== undefined) {
+				const ids = body.mediaIds;
+				if (ids.length > 0) {
+					const owned = await db
+						.select({ id: mediaTable.id })
+						.from(mediaTable)
+						.where(
+							and(inArray(mediaTable.id, ids), eq(mediaTable.ownerId, u.id)),
+						);
+					if (owned.length !== new Set(ids).size) {
+						throw new HttpError(
+							422,
+							"invalid_media",
+							"One or more media ids are not owned by you or do not exist",
+						);
+					}
+				}
+			}
+
+			const updated = await db.transaction(async (tx) => {
+				const fields = {
 					...(body.clue !== undefined ? { clue: body.clue } : {}),
 					...(body.answer !== undefined ? { answer: body.answer } : {}),
 					...(body.pointValue !== undefined
@@ -304,9 +357,37 @@ export const quizzes = new Elysia({ tags: ["quizzes"] })
 					...(body.isDailyDouble !== undefined
 						? { isDailyDouble: body.isDailyDouble }
 						: {}),
-				})
-				.where(eq(questionTable.id, params.id))
-				.returning();
+				};
+				const [row] =
+					Object.keys(fields).length > 0
+						? await tx
+								.update(questionTable)
+								.set(fields)
+								.where(eq(questionTable.id, params.id))
+								.returning()
+						: await tx
+								.select()
+								.from(questionTable)
+								.where(eq(questionTable.id, params.id));
+
+				if (body.mediaIds !== undefined) {
+					await tx
+						.delete(questionMediaTable)
+						.where(eq(questionMediaTable.questionId, params.id));
+					if (body.mediaIds.length > 0) {
+						await tx.insert(questionMediaTable).values(
+							body.mediaIds.map((mediaId, position) => ({
+								questionId: params.id,
+								mediaId,
+								position,
+							})),
+						);
+					}
+				}
+
+				return row;
+			});
+
 			return { question: updated };
 		},
 		{
@@ -315,6 +396,9 @@ export const quizzes = new Elysia({ tags: ["quizzes"] })
 				answer: t.Optional(t.String({ maxLength: 200 })),
 				pointValue: t.Optional(t.Integer({ minimum: 100, maximum: 2000 })),
 				isDailyDouble: t.Optional(t.Boolean()),
+				mediaIds: t.Optional(
+					t.Array(t.String(), { maxItems: MAX_MEDIA_PER_QUESTION }),
+				),
 			}),
 		},
 	)

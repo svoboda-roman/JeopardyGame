@@ -210,11 +210,20 @@ function readSnapshot(raw: unknown): {
 	finalQuestion: InternalFinalQuestion | null;
 } {
 	const v = raw as PersistedSnapshot | InternalBoard;
-	if (v && typeof v === "object" && "board" in v) {
-		const s = v as PersistedSnapshot;
-		return { board: s.board, finalQuestion: s.finalQuestion ?? null };
+	const out =
+		v && typeof v === "object" && "board" in v
+			? {
+					board: (v as PersistedSnapshot).board,
+					finalQuestion: (v as PersistedSnapshot).finalQuestion ?? null,
+				}
+			: { board: v as InternalBoard, finalQuestion: null };
+	// Backfill media[] for snapshots persisted before media support landed.
+	for (const q of Object.values(out.board.questions)) {
+		if (!Array.isArray((q as { media?: unknown }).media)) {
+			(q as { media: unknown[] }).media = [];
+		}
 	}
-	return { board: v as InternalBoard, finalQuestion: null };
+	return out;
 }
 
 function computeRanking(state: GameState): RankingEntry[] {

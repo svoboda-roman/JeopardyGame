@@ -2,6 +2,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useLayoutEffect, useRef, useState } from "react";
 import { useStore } from "zustand";
 import { Button } from "#/components/ui/button.tsx";
+import { apiUrl } from "#/lib/api.ts";
 import { useGameSocket } from "#/lib/game-socket.ts";
 
 export const Route = createFileRoute("/host/$roomCode")({
@@ -251,11 +252,12 @@ function HostPage() {
 				game.phase === "buzzed") &&
 				game.currentQuestion && (
 					<QuestionModal
-						key={game.currentQuestion.clue}
+						key={game.currentQuestion.ref}
 						clue={game.currentQuestion.clue}
 						answer={game.currentQuestion.answer}
 						pointValue={game.currentQuestion.pointValue}
 						isDailyDouble={game.currentQuestion.isDailyDouble}
+						media={game.currentQuestion.media ?? []}
 						currentWager={game.currentWager}
 						buzzedName={buzzed?.displayName ?? null}
 						phase={game.phase}
@@ -418,6 +420,7 @@ function QuestionModal({
 	answer,
 	pointValue,
 	isDailyDouble,
+	media,
 	currentWager,
 	buzzedName,
 	phase,
@@ -428,6 +431,7 @@ function QuestionModal({
 	answer: string;
 	pointValue: number;
 	isDailyDouble: boolean;
+	media: { id: string; mime: string; url: string }[];
 	currentWager: number | null;
 	buzzedName: string | null;
 	phase: string;
@@ -476,6 +480,19 @@ function QuestionModal({
 							</>
 						)}
 					</div>
+
+					{media.length > 0 && (
+						<div className="flex flex-wrap justify-center gap-3">
+							{media.map((m) => (
+								<img
+									key={m.id}
+									src={apiUrl(m.url)}
+									alt=""
+									className="max-h-72 rounded-md border"
+								/>
+							))}
+						</div>
+					)}
 
 					<p className="text-2xl sm:text-4xl leading-snug text-center font-heading font-medium text-balance">
 						{clue}

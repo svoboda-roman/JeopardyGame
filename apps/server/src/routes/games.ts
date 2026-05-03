@@ -8,6 +8,8 @@ import {
 	gameResult as gameResultTable,
 	gameSnapshot as gameSnapshotTable,
 	game as gameTable,
+	media as mediaTable,
+	questionMedia as questionMediaTable,
 	question as questionTable,
 	quiz as quizTable,
 	userProfile as userProfileTable,
@@ -60,6 +62,28 @@ async function snapshotQuiz(
 					),
 				).then((r) => r.flat());
 
+	const allQIds = allQs.map((qq) => qq.id);
+	const mediaJoins = allQIds.length
+		? await db
+				.select({
+					questionId: questionMediaTable.questionId,
+					position: questionMediaTable.position,
+					id: mediaTable.id,
+					mime: mediaTable.mime,
+				})
+				.from(questionMediaTable)
+				.innerJoin(mediaTable, eq(mediaTable.id, questionMediaTable.mediaId))
+				.where(inArray(questionMediaTable.questionId, allQIds))
+				.orderBy(asc(questionMediaTable.position))
+		: [];
+	const mediaByQ: Record<string, { id: string; mime: string; url: string }[]> =
+		{};
+	for (const m of mediaJoins) {
+		const list = mediaByQ[m.questionId] ?? [];
+		list.push({ id: m.id, mime: m.mime, url: `/media/${m.id}/file` });
+		mediaByQ[m.questionId] = list;
+	}
+
 	const questions: Record<string, InternalQuestion> = {};
 	for (const qq of allQs) {
 		questions[qq.id] = {
@@ -70,6 +94,7 @@ async function snapshotQuiz(
 			isDailyDouble: qq.isDailyDouble,
 			clue: qq.clue,
 			answer: qq.answer,
+			media: mediaByQ[qq.id] ?? [],
 		};
 	}
 
