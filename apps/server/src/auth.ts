@@ -14,7 +14,7 @@ export const auth = betterAuth({
 	emailAndPassword: {
 		enabled: true,
 		requireEmailVerification: false, // Verification is enforced on host actions, not login (FR-A2)
-		minPasswordLength: 12,
+		minPasswordLength: 8,
 		sendResetPassword: async ({ user, url }) => {
 			await mailer.send({
 				to: user.email,

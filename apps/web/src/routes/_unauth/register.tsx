@@ -84,7 +84,7 @@ function RegisterPage() {
 					id="password"
 					type="password"
 					required
-					minLength={12}
+					minLength={8}
 					autoComplete="new-password"
 					className="w-full rounded-md border bg-input px-3 py-2 focus:outline-none focus:border-primary focus:ring-3 focus:ring-ring/40"
 					value={password}
