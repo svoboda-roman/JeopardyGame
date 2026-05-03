@@ -1,0 +1,16 @@
+node_modules
+apps/*/node_modules
+.env
+.env.*
+pgdata
+uploads
+apps/web/dist
+coverage
+test-results
+playwright-report
+blob-report
+.cache
+*.lcov
+.git
+.idea
+.DS_Store
