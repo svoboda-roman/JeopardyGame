@@ -38,6 +38,8 @@ function RegisterPage() {
 			}
 			await refresh();
 			navigate({ to: "/me" });
+		} catch {
+			setError(`Could not reach the server at ${apiUrl}.`);
 		} finally {
 			setLoading(false);
 		}
@@ -90,7 +92,7 @@ function RegisterPage() {
 					value={password}
 					onChange={(e) => setPassword(e.target.value)}
 				/>
-				<p className="text-xs text-muted-foreground">At least 12 characters.</p>
+				<p className="text-xs text-muted-foreground">At least 8 characters.</p>
 			</div>
 			{error && <p className="text-sm text-destructive">{error}</p>}
 			<Button type="submit" className="w-full" disabled={loading}>

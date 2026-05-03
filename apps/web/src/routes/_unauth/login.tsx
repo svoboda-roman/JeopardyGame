@@ -37,6 +37,8 @@ function LoginPage() {
 			}
 			await refresh();
 			navigate({ to: next ?? "/me" });
+		} catch {
+			setError(`Could not reach the server at ${apiUrl}.`);
 		} finally {
 			setLoading(false);
 		}
