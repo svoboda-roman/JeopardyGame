@@ -15,12 +15,13 @@ export const auth = betterAuth({
 		enabled: true,
 		requireEmailVerification: false, // Verification is enforced on host actions, not login (FR-A2)
 		minPasswordLength: 8,
-		sendResetPassword: async ({ user, url }) => {
+		sendResetPassword: async ({ user, token }) => {
+			const link = `${env.webOrigin}/reset?token=${encodeURIComponent(token)}`;
 			await mailer.send({
 				to: user.email,
 				subject: "Reset your JeopardyGame password",
-				text: `Reset your password: ${url}`,
-				html: `<p>Reset your password by clicking the link below:</p><p><a href="${url}">${url}</a></p>`,
+				text: `Reset your password: ${link}`,
+				html: `<p>Reset your password by clicking the link below:</p><p><a href="${link}">${link}</a></p>`,
 			});
 		},
 	},
@@ -28,12 +29,13 @@ export const auth = betterAuth({
 	emailVerification: {
 		sendOnSignUp: true,
 		autoSignInAfterVerification: true,
-		sendVerificationEmail: async ({ user, url }) => {
+		sendVerificationEmail: async ({ user, token }) => {
+			const link = `${env.webOrigin}/verify?token=${encodeURIComponent(token)}`;
 			await mailer.send({
 				to: user.email,
 				subject: "Verify your JeopardyGame email",
-				text: `Verify your email: ${url}`,
-				html: `<p>Welcome to JeopardyGame! Verify your email by clicking the link below:</p><p><a href="${url}">${url}</a></p>`,
+				text: `Verify your email: ${link}`,
+				html: `<p>Welcome to JeopardyGame! Verify your email by clicking the link below:</p><p><a href="${link}">${link}</a></p>`,
 			});
 		},
 	},
