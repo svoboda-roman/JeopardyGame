@@ -44,14 +44,10 @@ export const auth = betterAuth({
 	},
 
 	advanced: {
-		cookies: {
-			session_token: {
-				attributes: {
-					httpOnly: true,
-					sameSite: "lax",
-					secure: process.env.NODE_ENV === "production",
-				},
-			},
+		defaultCookieAttributes: {
+			httpOnly: true,
+			sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
+			secure: process.env.NODE_ENV === "production",
 		},
 	},
 });
