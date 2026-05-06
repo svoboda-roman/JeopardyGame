@@ -1,3 +1,4 @@
+import { useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { Button } from "#/components/ui/button.tsx";
@@ -9,6 +10,7 @@ export const Route = createFileRoute("/_auth/quizzes/new")({
 
 function NewQuizPage() {
 	const navigate = useNavigate();
+	const qc = useQueryClient();
 	const [title, setTitle] = useState("");
 	const [submitting, setSubmitting] = useState(false);
 	const [error, setError] = useState<string | null>(null);
@@ -24,6 +26,7 @@ function NewQuizPage() {
 				return;
 			}
 			const { quiz } = res.data as { quiz: { id: string } };
+			await qc.invalidateQueries({ queryKey: ["quizzes"] });
 			navigate({ to: "/quizzes/$quizId", params: { quizId: quiz.id } });
 		} finally {
 			setSubmitting(false);
