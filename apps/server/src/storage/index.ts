@@ -44,11 +44,11 @@ export class S3Storage implements Storage {
 
 	constructor() {
 		this.client = new S3Client({
-			accessKeyId: process.env.AWS_ACCESS_KEY_ID,
-			secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
-			bucket: process.env.BUCKET_NAME,
-			endpoint: process.env.AWS_ENDPOINT_URL_S3,
-			region: process.env.AWS_REGION ?? "auto",
+			accessKeyId: process.env.S3_ACCESS_KEY_ID,
+			secretAccessKey: process.env.S3_SECRET_ACCESS_KEY,
+			bucket: process.env.S3_BUCKET,
+			endpoint: process.env.S3_ENDPOINT,
+			region: process.env.S3_REGION ?? "auto",
 		});
 	}
 
@@ -68,9 +68,9 @@ export class S3Storage implements Storage {
 
 function makeStorage(): Storage {
 	if (
-		process.env.AWS_ACCESS_KEY_ID &&
-		process.env.AWS_SECRET_ACCESS_KEY &&
-		process.env.BUCKET_NAME
+		process.env.S3_ACCESS_KEY_ID &&
+		process.env.S3_SECRET_ACCESS_KEY &&
+		process.env.S3_BUCKET
 	) {
 		return new S3Storage();
 	}
