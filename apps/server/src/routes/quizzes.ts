@@ -246,7 +246,7 @@ export const quizzes = new Elysia({ tags: ["quizzes"] })
 				description: t.Optional(
 					t.Union([t.String({ maxLength: 1000 }), t.Null()]),
 				),
-				settings: t.Optional(t.Record(t.String(), t.Unknown())),
+				settings: t.Optional(t.Any()),
 			}),
 		},
 	)
