@@ -839,113 +839,118 @@ function SettingsButton({
 					role="dialog"
 					aria-modal="true"
 					aria-label="Game settings"
-					className="fixed inset-0 z-20 p-4 flex items-center justify-center"
+					className="fixed inset-0 z-20 overflow-y-auto"
 				>
 					<button
 						type="button"
 						aria-label="Close dialog"
-						className="absolute inset-0 bg-background/90 backdrop-blur"
+						className="fixed inset-0 bg-background/90 backdrop-blur"
 						onClick={close}
 					/>
-					<div className="relative bg-card border rounded-2xl p-5 w-full max-w-sm space-y-4 glow-primary overflow-y-auto max-h-[85dvh]">
-						<h2 className="font-heading font-bold text-lg">Game settings</h2>
+					<div className="relative flex min-h-full items-center justify-center p-4 pointer-events-none">
+						<div className="relative bg-card border rounded-2xl p-5 w-full max-w-sm space-y-4 glow-primary pointer-events-auto">
+							<h2 className="font-heading font-bold text-lg">Game settings</h2>
 
-						<label
-							htmlFor={manualId}
-							className="flex items-center gap-3 text-sm cursor-pointer"
-						>
-							<input
-								id={manualId}
-								type="checkbox"
-								checked={settings.manualPoints}
-								onChange={(e) =>
-									onChange({ ...settings, manualPoints: e.target.checked })
-								}
-								className="size-4"
-							/>
-							<span>
-								<span className="block font-medium">
-									Manual point assignment
-								</span>
-								<span className="block text-xs text-muted-foreground">
-									Disable automatic scoring. Host assigns points manually during
-									gameplay.
-								</span>
-							</span>
-						</label>
-
-						<label
-							htmlFor={finalId}
-							className="flex items-center gap-3 text-sm cursor-pointer"
-						>
-							<input
-								id={finalId}
-								type="checkbox"
-								checked={settings.finalEnabled}
-								onChange={(e) =>
-									onChange({ ...settings, finalEnabled: e.target.checked })
-								}
-								className="size-4"
-							/>
-							<span>
-								<span className="block font-medium">Final Jeopardy</span>
-								<span className="block text-xs text-muted-foreground">
-									Play a final round after the board is cleared (requires a
-									final question on the quiz).
-								</span>
-							</span>
-						</label>
-
-						<label
-							htmlFor={reopenId}
-							className="flex items-center gap-3 text-sm cursor-pointer"
-						>
-							<input
-								id={reopenId}
-								type="checkbox"
-								checked={settings.allowReopen}
-								onChange={(e) =>
-									onChange({ ...settings, allowReopen: e.target.checked })
-								}
-								className="size-4"
-							/>
-							<span>
-								<span className="block font-medium">
-									Allow revisiting answered questions
-								</span>
-								<span className="block text-xs text-muted-foreground">
-									Answered questions stay gray but remain clickable so the host
-									can replay them.
-								</span>
-							</span>
-						</label>
-
-						<div className="space-y-1">
 							<label
-								htmlFor={delayId}
-								className="text-xs font-semibold uppercase tracking-wider text-muted-foreground"
+								htmlFor={manualId}
+								className="flex items-center gap-3 text-sm cursor-pointer"
 							>
-								Read delay (ms)
+								<input
+									id={manualId}
+									type="checkbox"
+									checked={settings.manualPoints}
+									onChange={(e) =>
+										onChange({ ...settings, manualPoints: e.target.checked })
+									}
+									className="size-4"
+								/>
+								<span>
+									<span className="block font-medium">
+										Manual point assignment
+									</span>
+									<span className="block text-xs text-muted-foreground">
+										Disable automatic scoring. Host assigns points manually
+										during gameplay.
+									</span>
+								</span>
 							</label>
-							<input
-								id={delayId}
-								type="number"
-								min={0}
-								max={10000}
-								step={500}
-								value={settings.readDelayMs}
-								onChange={(e) =>
-									onChange({ ...settings, readDelayMs: Number(e.target.value) })
-								}
-								className="w-full rounded-md border bg-input px-3 py-2 focus:outline-none focus:border-primary focus:ring-3 focus:ring-ring/40"
-							/>
-							<p className="text-xs text-muted-foreground">
-								Time before buzzers open after the host opens a question.
-							</p>
-						</div>
 
-						<div className="flex justify-end">
-							<Button onClick={close}>Done</Button>
+							<label
+								htmlFor={finalId}
+								className="flex items-center gap-3 text-sm cursor-pointer"
+							>
+								<input
+									id={finalId}
+									type="checkbox"
+									checked={settings.finalEnabled}
+									onChange={(e) =>
+										onChange({ ...settings, finalEnabled: e.target.checked })
+									}
+									className="size-4"
+								/>
+								<span>
+									<span className="block font-medium">Final Jeopardy</span>
+									<span className="block text-xs text-muted-foreground">
+										Play a final round after the board is cleared (requires a
+										final question on the quiz).
+									</span>
+								</span>
+							</label>
+
+							<label
+								htmlFor={reopenId}
+								className="flex items-center gap-3 text-sm cursor-pointer"
+							>
+								<input
+									id={reopenId}
+									type="checkbox"
+									checked={settings.allowReopen}
+									onChange={(e) =>
+										onChange({ ...settings, allowReopen: e.target.checked })
+									}
+									className="size-4"
+								/>
+								<span>
+									<span className="block font-medium">
+										Allow revisiting answered questions
+									</span>
+									<span className="block text-xs text-muted-foreground">
+										Answered questions stay gray but remain clickable so the
+										host can replay them.
+									</span>
+								</span>
+							</label>
+
+							<div className="space-y-1">
+								<label
+									htmlFor={delayId}
+									className="text-xs font-semibold uppercase tracking-wider text-muted-foreground"
+								>
+									Read delay (ms)
+								</label>
+								<input
+									id={delayId}
+									type="number"
+									min={0}
+									max={10000}
+									step={500}
+									value={settings.readDelayMs}
+									onChange={(e) =>
+										onChange({
+											...settings,
+											readDelayMs: Number(e.target.value),
+										})
+									}
+									className="w-full rounded-md border bg-input px-3 py-2 focus:outline-none focus:border-primary focus:ring-3 focus:ring-ring/40"
+								/>
+								<p className="text-xs text-muted-foreground">
+									Time before buzzers open after the host opens a question.
+								</p>
+							</div>
+
+							<div className="flex justify-end">
+								<Button onClick={close}>Done</Button>
+							</div>
 						</div>
 					</div>
 				</div>
