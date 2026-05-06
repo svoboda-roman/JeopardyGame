@@ -84,6 +84,7 @@ export interface GameView {
 	hostId: string;
 	phase: Phase;
 	manualPoints: boolean;
+	allowReopen: boolean;
 	players: PlayerView[];
 	board: BoardCategoryView[];
 	currentQuestion: QuestionView | null;
