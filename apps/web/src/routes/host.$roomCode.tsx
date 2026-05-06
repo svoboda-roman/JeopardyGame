@@ -1,5 +1,13 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useLayoutEffect, useRef, useState } from "react";
+import {
+	useCallback,
+	useEffect,
+	useId,
+	useLayoutEffect,
+	useRef,
+	useState,
+} from "react";
+import type { ClientToServer, GameView } from "server/src/game/protocol.ts";
 import { useStore } from "zustand";
 import { Button } from "#/components/ui/button.tsx";
 import { apiUrl } from "#/lib/api.ts";
@@ -137,9 +145,13 @@ function HostPage() {
 					</div>
 					<div className="flex items-center gap-2">
 						{game.phase === "lobby" && (
-							<Button size="lg" onClick={() => send({ type: "start_game" })}>
-								Start game
-							</Button>
+							<>
+								<LobbyShareButton roomCode={game.roomCode} />
+								<LobbySettingsButton game={game} send={send} />
+								<Button size="lg" onClick={() => send({ type: "start_game" })}>
+									Start game
+								</Button>
+							</>
 						)}
 						{fjAvailable && (
 							<Button
@@ -202,7 +214,7 @@ function HostPage() {
 										q.closed && !game.allowReopen
 											? "opacity-15 line-through text-muted-foreground"
 											: q.closed
-												? "opacity-40 line-through text-muted-foreground hover:opacity-70 hover:bg-muted/30 hover:scale-[1.02] active:scale-100"
+												? "opacity-40 text-muted-foreground hover:opacity-70 hover:bg-muted/30 hover:scale-[1.02] active:scale-100"
 												: "score hover:bg-primary hover:text-primary-foreground hover:from-primary hover:to-primary hover:border-primary hover:shadow-[0_0_24px_var(--primary-glow)] hover:scale-[1.02] active:scale-100"
 									} disabled:cursor-not-allowed`}
 								>
@@ -870,5 +882,197 @@ function CompletedView({
 				</Link>
 			</div>
 		</section>
+	);
+}
+
+function LobbyShareButton({ roomCode }: { roomCode: string }) {
+	const [copied, setCopied] = useState(false);
+
+	function share() {
+		const url = `${window.location.origin}/join?code=${roomCode}`;
+		void navigator.clipboard.writeText(url).then(() => {
+			setCopied(true);
+			setTimeout(() => setCopied(false), 2000);
+		});
+	}
+
+	return (
+		<Button variant="outline" onClick={share}>
+			{copied ? "Copied!" : "Share link"}
+		</Button>
+	);
+}
+
+function LobbySettingsButton({
+	game,
+	send,
+}: {
+	game: GameView;
+	send: (msg: ClientToServer) => void;
+}) {
+	const [open, setOpen] = useState(false);
+	const manualId = useId();
+	const finalId = useId();
+	const reopenId = useId();
+	const delayId = useId();
+
+	const [local, setLocal] = useState({
+		manualPoints: game.manualPoints,
+		finalEnabled: game.finalEnabled,
+		allowReopen: game.allowReopen,
+		readDelayMs: game.readDelayMs,
+	});
+
+	const close = useCallback(() => {
+		send({ type: "update_settings", ...local });
+		setOpen(false);
+	}, [local, send]);
+
+	useEffect(() => {
+		if (!open) return;
+		function onKey(e: KeyboardEvent) {
+			if (e.key === "Escape") close();
+		}
+		window.addEventListener("keydown", onKey);
+		return () => window.removeEventListener("keydown", onKey);
+	}, [open, close]);
+
+	useEffect(() => {
+		if (!open) {
+			setLocal({
+				manualPoints: game.manualPoints,
+				finalEnabled: game.finalEnabled,
+				allowReopen: game.allowReopen,
+				readDelayMs: game.readDelayMs,
+			});
+		}
+	}, [
+		game.manualPoints,
+		game.finalEnabled,
+		game.allowReopen,
+		game.readDelayMs,
+		open,
+	]);
+
+	return (
+		<>
+			<Button variant="outline" onClick={() => setOpen(true)}>
+				Settings
+			</Button>
+			{open && (
+				<div
+					role="dialog"
+					aria-modal="true"
+					aria-label="Game settings"
+					className="fixed inset-0 z-20 p-4 flex items-center justify-center"
+				>
+					<button
+						type="button"
+						aria-label="Close dialog"
+						className="absolute inset-0 bg-background/90 backdrop-blur"
+						onClick={close}
+					/>
+					<div className="relative bg-card border rounded-2xl p-5 w-full max-w-sm space-y-4 glow-primary">
+						<h2 className="font-heading font-bold text-lg">Game settings</h2>
+
+						<label
+							htmlFor={manualId}
+							className="flex items-center gap-3 text-sm cursor-pointer"
+						>
+							<input
+								id={manualId}
+								type="checkbox"
+								checked={local.manualPoints}
+								onChange={(e) =>
+									setLocal({ ...local, manualPoints: e.target.checked })
+								}
+								className="size-4"
+							/>
+							<span>
+								<span className="block font-medium">
+									Manual point assignment
+								</span>
+								<span className="block text-xs text-muted-foreground">
+									Disable automatic scoring. Host assigns points manually during
+									gameplay.
+								</span>
+							</span>
+						</label>
+
+						<label
+							htmlFor={finalId}
+							className="flex items-center gap-3 text-sm cursor-pointer"
+						>
+							<input
+								id={finalId}
+								type="checkbox"
+								checked={local.finalEnabled}
+								onChange={(e) =>
+									setLocal({ ...local, finalEnabled: e.target.checked })
+								}
+								className="size-4"
+							/>
+							<span>
+								<span className="block font-medium">Final Jeopardy</span>
+								<span className="block text-xs text-muted-foreground">
+									Play a final round after the board is cleared.
+								</span>
+							</span>
+						</label>
+
+						<label
+							htmlFor={reopenId}
+							className="flex items-center gap-3 text-sm cursor-pointer"
+						>
+							<input
+								id={reopenId}
+								type="checkbox"
+								checked={local.allowReopen}
+								onChange={(e) =>
+									setLocal({ ...local, allowReopen: e.target.checked })
+								}
+								className="size-4"
+							/>
+							<span>
+								<span className="block font-medium">
+									Allow revisiting answered questions
+								</span>
+								<span className="block text-xs text-muted-foreground">
+									Answered questions stay gray but remain clickable.
+								</span>
+							</span>
+						</label>
+
+						<div className="space-y-1">
+							<label
+								htmlFor={delayId}
+								className="text-xs font-semibold uppercase tracking-wider text-muted-foreground"
+							>
+								Read delay (ms)
+							</label>
+							<input
+								id={delayId}
+								type="number"
+								min={0}
+								max={10000}
+								step={500}
+								value={local.readDelayMs}
+								onChange={(e) =>
+									setLocal({ ...local, readDelayMs: Number(e.target.value) })
+								}
+								className="w-full rounded-md border bg-input px-3 py-2 focus:outline-none focus:border-primary focus:ring-3 focus:ring-ring/40"
+							/>
+							<p className="text-xs text-muted-foreground">
+								Time before buzzers open after the host opens a question.
+							</p>
+						</div>
+
+						<div className="flex justify-end">
+							<Button onClick={close}>Done</Button>
+						</div>
+					</div>
+				</div>
+			)}
+		</>
 	);
 }

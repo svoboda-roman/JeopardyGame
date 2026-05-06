@@ -207,6 +207,8 @@ export function projectView(state: GameState): GameView {
 		phase: state.phase,
 		manualPoints: state.options.manualPoints,
 		allowReopen: state.options.allowReopen,
+		readDelayMs: state.options.readDelayMs,
+		finalEnabled: state.options.finalEnabled,
 		players: Object.values(state.players)
 			.sort((a, b) =>
 				a.isHost === b.isHost
@@ -349,6 +351,14 @@ export type Intent =
 	| { type: "close_question"; actorId: string }
 	| { type: "set_picker"; actorId: string; playerId: string }
 	| { type: "adjust_score"; actorId: string; playerId: string; delta: number }
+	| {
+			type: "update_settings";
+			actorId: string;
+			manualPoints?: boolean;
+			allowReopen?: boolean;
+			readDelayMs?: number;
+			finalEnabled?: boolean;
+	  }
 	| { type: "wager"; actorId: string; amount: number }
 	| { type: "start_final"; actorId: string }
 	| { type: "fj_wager"; actorId: string; amount: number }
@@ -752,6 +762,33 @@ export function transition(state: GameState, intent: Intent): TransitionResult {
 					newScore,
 				},
 			]);
+		}
+
+		case "update_settings": {
+			requireHost(state, intent.actorId);
+			const updatedOptions = {
+				...state.options,
+				...(intent.manualPoints !== undefined
+					? { manualPoints: intent.manualPoints }
+					: {}),
+				...(intent.allowReopen !== undefined
+					? { allowReopen: intent.allowReopen }
+					: {}),
+				...(intent.readDelayMs !== undefined
+					? { readDelayMs: intent.readDelayMs }
+					: {}),
+				...(intent.finalEnabled !== undefined
+					? { finalEnabled: intent.finalEnabled }
+					: {}),
+			};
+			const next: GameState = { ...state, options: updatedOptions };
+			const settings = {
+				manualPoints: updatedOptions.manualPoints,
+				allowReopen: updatedOptions.allowReopen,
+				readDelayMs: updatedOptions.readDelayMs,
+				finalEnabled: updatedOptions.finalEnabled,
+			};
+			return ok(next, [{ type: "settings_updated", settings }]);
 		}
 
 		case "start_final": {

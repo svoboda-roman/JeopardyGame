@@ -85,6 +85,8 @@ export interface GameView {
 	phase: Phase;
 	manualPoints: boolean;
 	allowReopen: boolean;
+	readDelayMs: number;
+	finalEnabled: boolean;
 	players: PlayerView[];
 	board: BoardCategoryView[];
 	currentQuestion: QuestionView | null;
@@ -120,6 +122,13 @@ export type ClientToServer =
 	  }
 	| { type: "set_picker"; playerId: string }
 	| { type: "adjust_score"; playerId: string; delta: number }
+	| {
+			type: "update_settings";
+			manualPoints?: boolean;
+			allowReopen?: boolean;
+			readDelayMs?: number;
+			finalEnabled?: boolean;
+	  }
 	| { type: "leave" }
 	| { type: "ping" };
 
@@ -181,6 +190,13 @@ export type ServerToClient =
 			playerId: string;
 			delta: number;
 			newScore: number;
+	  }
+	| {
+			type: "settings_updated";
+			settings: Pick<
+				GameView,
+				"manualPoints" | "allowReopen" | "readDelayMs" | "finalEnabled"
+			>;
 	  }
 	| { type: "pong" }
 	| { type: "error"; code: string; message: string };
