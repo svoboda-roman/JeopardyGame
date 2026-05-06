@@ -1,5 +1,6 @@
 import { mkdir, readFile, unlink, writeFile } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
+import { S3Client } from "bun";
 
 // Abstract media backend. Swapping to S3/R2 later means replacing the
 // concrete impl, not touching call sites.
@@ -38,8 +39,45 @@ export class LocalDiskStorage implements Storage {
 	}
 }
 
-const root = process.env.UPLOADS_DIR
-	? resolve(process.env.UPLOADS_DIR)
-	: join(process.cwd(), "uploads");
+export class S3Storage implements Storage {
+	private client: S3Client;
 
-export const storage: Storage = new LocalDiskStorage(root);
+	constructor() {
+		this.client = new S3Client({
+			accessKeyId: process.env.AWS_ACCESS_KEY_ID,
+			secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
+			bucket: process.env.BUCKET_NAME,
+			endpoint: process.env.AWS_ENDPOINT_URL_S3,
+			region: process.env.AWS_REGION ?? "auto",
+		});
+	}
+
+	async put(key: string, bytes: Uint8Array): Promise<void> {
+		await this.client.write(key, bytes);
+	}
+
+	async get(key: string): Promise<Uint8Array> {
+		const buf = await this.client.file(key).arrayBuffer();
+		return new Uint8Array(buf);
+	}
+
+	async delete(key: string): Promise<void> {
+		await this.client.delete(key);
+	}
+}
+
+function makeStorage(): Storage {
+	if (
+		process.env.AWS_ACCESS_KEY_ID &&
+		process.env.AWS_SECRET_ACCESS_KEY &&
+		process.env.BUCKET_NAME
+	) {
+		return new S3Storage();
+	}
+	const root = process.env.UPLOADS_DIR
+		? resolve(process.env.UPLOADS_DIR)
+		: join(process.cwd(), "uploads");
+	return new LocalDiskStorage(root);
+}
+
+export const storage: Storage = makeStorage();
