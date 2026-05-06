@@ -89,6 +89,24 @@ function EditorPage() {
 		}
 	}, [data]);
 
+	const saveSettings = useCallback(
+		(s: GameSettings) => {
+			qc.setQueryData<QuizDetail>(["quiz", quizId], (prev) =>
+				prev
+					? {
+							...prev,
+							quiz: {
+								...prev.quiz,
+								settings: s as unknown as Record<string, unknown>,
+							},
+						}
+					: prev,
+			);
+			void api.quizzes({ id: quizId }).patch({ settings: s });
+		},
+		[qc, quizId],
+	);
+
 	const flushSettings = useCallback(() => {
 		const pending = pendingSettingsRef.current;
 		if (timerRef.current) {
@@ -97,8 +115,8 @@ function EditorPage() {
 		}
 		if (!pending) return;
 		pendingSettingsRef.current = null;
-		void api.quizzes({ id: quizId }).patch({ settings: pending });
-	}, [quizId]);
+		saveSettings(pending);
+	}, [saveSettings]);
 
 	// Debounce-save settings whenever they change. On unmount, flush immediately
 	// so navigating away before the 600ms window doesn't lose the change.
@@ -109,9 +127,9 @@ function EditorPage() {
 		timerRef.current = setTimeout(() => {
 			timerRef.current = null;
 			pendingSettingsRef.current = null;
-			void api.quizzes({ id: quizId }).patch({ settings });
+			saveSettings(settings);
 		}, 600);
-	}, [settings, quizId]);
+	}, [settings, saveSettings]);
 
 	useEffect(() => {
 		return () => flushSettings();
