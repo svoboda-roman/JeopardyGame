@@ -111,6 +111,15 @@ function intentFor(playerId: string, msg: ClientToServer): Intent | null {
 				playerId: msg.playerId,
 				delta: msg.delta,
 			};
+		case "update_settings":
+			return {
+				type: "update_settings",
+				actorId: playerId,
+				manualPoints: msg.manualPoints,
+				allowReopen: msg.allowReopen,
+				readDelayMs: msg.readDelayMs,
+				finalEnabled: msg.finalEnabled,
+			};
 		case "wager":
 			return { type: "wager", actorId: playerId, amount: msg.amount };
 		case "start_final":

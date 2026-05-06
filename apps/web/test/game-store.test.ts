@@ -41,6 +41,8 @@ function baseGame(): GameView {
 		currentWager: null,
 		manualPoints: false,
 		allowReopen: false,
+		readDelayMs: 3000,
+		finalEnabled: true,
 		finalJeopardy: null,
 	};
 }

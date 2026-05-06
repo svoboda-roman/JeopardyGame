@@ -304,6 +304,12 @@ export const createGameStore = () =>
 					set({ game: { ...g, phase: "completed" } });
 					return;
 				}
+				case "settings_updated": {
+					const g = get().game;
+					if (!g) return;
+					set({ game: { ...g, ...msg.settings } });
+					return;
+				}
 				case "error":
 					set({ lastError: { code: msg.code, message: msg.message } });
 					return;
