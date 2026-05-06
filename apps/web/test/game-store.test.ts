@@ -40,6 +40,7 @@ function baseGame(): GameView {
 		currentPickerId: null,
 		currentWager: null,
 		manualPoints: false,
+		allowReopen: false,
 		finalJeopardy: null,
 	};
 }

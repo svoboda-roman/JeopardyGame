@@ -17,6 +17,7 @@ export interface GameOptions {
 	readDelayMs: number;
 	finalEnabled: boolean;
 	manualPoints: boolean;
+	allowReopen: boolean;
 }
 
 export interface InternalFinalQuestion {
@@ -136,6 +137,7 @@ export function newGame(args: {
 			readDelayMs: args.options?.readDelayMs ?? DEFAULT_READ_DELAY_MS,
 			finalEnabled: args.options?.finalEnabled ?? false,
 			manualPoints: args.options?.manualPoints ?? false,
+			allowReopen: args.options?.allowReopen ?? false,
 		},
 		phase: "lobby",
 		players: {
@@ -204,6 +206,7 @@ export function projectView(state: GameState): GameView {
 		hostId: state.hostId,
 		phase: state.phase,
 		manualPoints: state.options.manualPoints,
+		allowReopen: state.options.allowReopen,
 		players: Object.values(state.players)
 			.sort((a, b) =>
 				a.isHost === b.isHost
@@ -408,7 +411,10 @@ export function transition(state: GameState, intent: Intent): TransitionResult {
 			}
 			if (state.phase !== "picking")
 				throw new GameError("invalid_state", "Not picking");
-			if (state.closedQuestions.has(intent.questionRef))
+			if (
+				state.closedQuestions.has(intent.questionRef) &&
+				!state.options.allowReopen
+			)
 				throw new GameError("invalid_state", "Question already closed");
 			const q = state.board.questions[intent.questionRef];
 			if (!q) throw new GameError("not_found", "Unknown question");

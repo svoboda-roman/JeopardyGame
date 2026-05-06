@@ -191,15 +191,19 @@ function HostPage() {
 								<button
 									key={q.ref}
 									type="button"
-									disabled={q.closed || game.phase !== "picking"}
+									disabled={
+										(q.closed && !game.allowReopen) || game.phase !== "picking"
+									}
 									onClick={() => {
 										send({ type: "select_question", questionRef: q.ref });
 										send({ type: "open_question" });
 									}}
 									className={`group w-full rounded-lg border py-4 sm:py-5 font-mono font-bold text-lg sm:text-2xl bg-gradient-to-br from-card to-input transition-all ${
-										q.closed
+										q.closed && !game.allowReopen
 											? "opacity-15 line-through text-muted-foreground"
-											: "score hover:bg-primary hover:text-primary-foreground hover:from-primary hover:to-primary hover:border-primary hover:shadow-[0_0_24px_var(--primary-glow)] hover:scale-[1.02] active:scale-100"
+											: q.closed
+												? "opacity-40 line-through text-muted-foreground hover:opacity-70 hover:bg-muted/30 hover:scale-[1.02] active:scale-100"
+												: "score hover:bg-primary hover:text-primary-foreground hover:from-primary hover:to-primary hover:border-primary hover:shadow-[0_0_24px_var(--primary-glow)] hover:scale-[1.02] active:scale-100"
 									} disabled:cursor-not-allowed`}
 								>
 									${q.pointValue}

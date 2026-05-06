@@ -298,7 +298,12 @@ export async function getOrLoadRoom(
 			board,
 			finalQuestion,
 			options:
-				(g.options as { readDelayMs?: number; finalEnabled?: boolean }) ?? {},
+				(g.options as {
+					readDelayMs?: number;
+					finalEnabled?: boolean;
+					manualPoints?: boolean;
+					allowReopen?: boolean;
+				}) ?? {},
 		});
 
 		// Hydrate remaining players.

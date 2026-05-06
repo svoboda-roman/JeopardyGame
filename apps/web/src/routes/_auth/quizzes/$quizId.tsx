@@ -60,6 +60,7 @@ function parseSettings(raw: Record<string, unknown>): GameSettings {
 		finalEnabled:
 			typeof raw.finalEnabled === "boolean" ? raw.finalEnabled : true,
 		readDelayMs: typeof raw.readDelayMs === "number" ? raw.readDelayMs : 3000,
+		allowReopen: typeof raw.allowReopen === "boolean" ? raw.allowReopen : false,
 	};
 }
 
@@ -755,6 +756,7 @@ interface GameSettings {
 	manualPoints: boolean;
 	finalEnabled: boolean;
 	readDelayMs: number;
+	allowReopen: boolean;
 }
 
 function GameSettingsContext({
@@ -793,6 +795,7 @@ function SettingsButton({
 	const manualId = useId();
 	const finalId = useId();
 	const delayId = useId();
+	const reopenId = useId();
 
 	const close = useCallback(() => {
 		onFlush();
@@ -871,6 +874,30 @@ function SettingsButton({
 								<span className="block text-xs text-muted-foreground">
 									Play a final round after the board is cleared (requires a
 									final question on the quiz).
+								</span>
+							</span>
+						</label>
+
+						<label
+							htmlFor={reopenId}
+							className="flex items-center gap-3 text-sm cursor-pointer"
+						>
+							<input
+								id={reopenId}
+								type="checkbox"
+								checked={settings.allowReopen}
+								onChange={(e) =>
+									onChange({ ...settings, allowReopen: e.target.checked })
+								}
+								className="size-4"
+							/>
+							<span>
+								<span className="block font-medium">
+									Allow revisiting answered questions
+								</span>
+								<span className="block text-xs text-muted-foreground">
+									Answered questions stay gray but remain clickable so the host
+									can replay them.
 								</span>
 							</span>
 						</label>

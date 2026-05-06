@@ -177,6 +177,7 @@ export const games = new Elysia({ tags: ["games"] })
 			});
 			const readDelayMs = body.options?.readDelayMs ?? 3000;
 			const manualPoints = body.options?.manualPoints ?? false;
+			const allowReopen = body.options?.allowReopen ?? false;
 
 			// Read host display name once (profile preferred, fallback to user.name).
 			const profileRow = (
@@ -221,7 +222,12 @@ export const games = new Elysia({ tags: ["games"] })
 									quizId: body.quizId,
 									hostId: u.id,
 									status: "lobby",
-									options: { readDelayMs, finalEnabled, manualPoints },
+									options: {
+										readDelayMs,
+										finalEnabled,
+										manualPoints,
+										allowReopen,
+									},
 								})
 								.returning();
 							if (!g) throw new Error("game insert returned no row");
@@ -291,6 +297,7 @@ export const games = new Elysia({ tags: ["games"] })
 						readDelayMs: t.Optional(t.Integer({ minimum: 0, maximum: 10000 })),
 						finalEnabled: t.Optional(t.Boolean()),
 						manualPoints: t.Optional(t.Boolean()),
+						allowReopen: t.Optional(t.Boolean()),
 					}),
 				),
 			}),
