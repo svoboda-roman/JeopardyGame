@@ -1,4 +1,9 @@
-import { Delete02Icon } from "@hugeicons/core-free-icons";
+import {
+	CheckmarkCircle01Icon,
+	Delete02Icon,
+	HelpCircleIcon,
+	Settings01Icon,
+} from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
@@ -6,6 +11,7 @@ import { useEffect, useId, useRef, useState } from "react";
 import { MediaPicker, type PickedMedia } from "#/components/MediaPicker.tsx";
 import { Button } from "#/components/ui/button.tsx";
 import { api } from "#/lib/api.ts";
+import { extractYouTubeId } from "#/lib/utils.ts";
 
 const apiUrl = import.meta.env.VITE_API_URL ?? "http://localhost:3000";
 
@@ -17,6 +23,7 @@ interface Quiz {
 	id: string;
 	title: string;
 	description: string | null;
+	settings: Record<string, unknown>;
 }
 interface Category {
 	id: string;
@@ -33,6 +40,11 @@ interface Question {
 	clue: string;
 	answer: string;
 	media: PickedMedia[];
+	answerMedia: PickedMedia[];
+	youtubeId: string | null;
+	answerYoutubeId: string | null;
+	hostNotes: string | null;
+	buzzWindowMs: number | null;
 }
 interface QuizDetail {
 	quiz: Quiz;
@@ -41,10 +53,22 @@ interface QuizDetail {
 	finalQuestion: unknown | null;
 }
 
+function parseSettings(raw: Record<string, unknown>): GameSettings {
+	return {
+		manualPoints:
+			typeof raw.manualPoints === "boolean" ? raw.manualPoints : false,
+		finalEnabled:
+			typeof raw.finalEnabled === "boolean" ? raw.finalEnabled : true,
+		readDelayMs: typeof raw.readDelayMs === "number" ? raw.readDelayMs : 3000,
+	};
+}
+
 function EditorPage() {
 	const { quizId } = Route.useParams();
 	const navigate = useNavigate();
 	const qc = useQueryClient();
+	const [settings, setSettings] = useState<GameSettings | null>(null);
+	const saveSettingsTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
 	const { data, isLoading, error } = useQuery<QuizDetail>({
 		queryKey: ["quiz", quizId],
@@ -54,6 +78,26 @@ function EditorPage() {
 			return res.data as QuizDetail;
 		},
 	});
+
+	// Initialise settings from the server once data is loaded.
+	// biome-ignore lint/correctness/useExhaustiveDependencies: intentionally only runs when data arrives
+	useEffect(() => {
+		if (data && settings === null) {
+			setSettings(parseSettings(data.quiz.settings ?? {}));
+		}
+	}, [data]);
+
+	// Debounce-save settings whenever they change.
+	useEffect(() => {
+		if (!settings) return;
+		if (saveSettingsTimer.current) clearTimeout(saveSettingsTimer.current);
+		saveSettingsTimer.current = setTimeout(async () => {
+			await api.quizzes({ id: quizId }).patch({ settings });
+		}, 600);
+		return () => {
+			if (saveSettingsTimer.current) clearTimeout(saveSettingsTimer.current);
+		};
+	}, [settings, quizId]);
 
 	const deleteMut = useMutation({
 		mutationFn: async () => {
@@ -65,7 +109,7 @@ function EditorPage() {
 		},
 	});
 
-	if (isLoading)
+	if (isLoading || !settings)
 		return <p className="p-4 text-sm text-muted-foreground">Loading…</p>;
 	if (error || !data)
 		return <p className="p-4 text-sm text-destructive">Quiz not found.</p>;
@@ -77,7 +121,11 @@ function EditorPage() {
 					← All quizzes
 				</Link>
 				<div className="flex gap-2">
-					<HostButton quizId={quizId} />
+					<GameSettingsContext
+						quizId={quizId}
+						settings={settings}
+						onChange={(s) => setSettings(s)}
+					/>
 					<ShareButton quizId={quizId} />
 					<Button
 						variant="destructive"
@@ -97,6 +145,7 @@ function EditorPage() {
 				categories={data.categories}
 				questions={data.questions}
 				quizId={quizId}
+				manualPoints={settings.manualPoints}
 			/>
 		</div>
 	);
@@ -130,10 +179,12 @@ function Board({
 	categories,
 	questions,
 	quizId,
+	manualPoints,
 }: {
 	categories: Category[];
 	questions: Question[];
 	quizId: string;
+	manualPoints: boolean;
 }) {
 	const qc = useQueryClient();
 	const sortedCats = [...categories].sort((a, b) => a.position - b.position);
@@ -218,6 +269,7 @@ function Board({
 				<QuestionEditor
 					question={editing}
 					quizId={quizId}
+					manualPoints={manualPoints}
 					onClose={() => setEditing(null)}
 				/>
 			)}
@@ -276,24 +328,47 @@ function CategoryField({
 function QuestionEditor({
 	question,
 	quizId,
+	manualPoints,
 	onClose,
 }: {
 	question: Question;
 	quizId: string;
+	manualPoints: boolean;
 	onClose: () => void;
 }) {
 	const qc = useQueryClient();
+	const [tab, setTab] = useState<"question" | "answer" | "options">("question");
 	const [clue, setClue] = useState(question.clue);
 	const [answer, setAnswer] = useState(question.answer);
 	const [pointValue, setPointValue] = useState(question.pointValue);
 	const [isDD, setIsDD] = useState(question.isDailyDouble);
 	const [media, setMedia] = useState<PickedMedia[]>(question.media ?? []);
+	const [answerMedia, setAnswerMedia] = useState<PickedMedia[]>(
+		question.answerMedia ?? [],
+	);
+	const [youtubeUrl, setYoutubeUrl] = useState(
+		question.youtubeId
+			? `https://www.youtube.com/watch?v=${question.youtubeId}`
+			: "",
+	);
+	const [answerYoutubeUrl, setAnswerYoutubeUrl] = useState(
+		question.answerYoutubeId
+			? `https://www.youtube.com/watch?v=${question.answerYoutubeId}`
+			: "",
+	);
+	const [hostNotes, setHostNotes] = useState(question.hostNotes ?? "");
+	const [buzzWindowMs, setBuzzWindowMs] = useState<number | null>(
+		question.buzzWindowMs ?? null,
+	);
 	const [savedAt, setSavedAt] = useState<number | null>(null);
 	const clueId = useId();
 	const answerId = useId();
 	const pointsId = useId();
+	const clueVideoId = useId();
+	const answerVideoId = useId();
+	const hostNotesId = useId();
+	const buzzWindowId = useId();
 
-	// Close on Escape — keyboard a11y for the modal.
 	useEffect(() => {
 		function onKey(e: KeyboardEvent) {
 			if (e.key === "Escape") onClose();
@@ -302,7 +377,7 @@ function QuestionEditor({
 		return () => window.removeEventListener("keydown", onKey);
 	}, [onClose]);
 
-	// Debounced save: 500ms after last change.
+	// Debounced autosave: 500ms after last change.
 	useEffect(() => {
 		const handle = setTimeout(async () => {
 			const prevMediaIds = (question.media ?? []).map((m) => m.id);
@@ -310,12 +385,30 @@ function QuestionEditor({
 			const mediaChanged =
 				prevMediaIds.length !== nextMediaIds.length ||
 				prevMediaIds.some((id, i) => id !== nextMediaIds[i]);
+			const prevAnswerMediaIds = (question.answerMedia ?? []).map((m) => m.id);
+			const nextAnswerMediaIds = answerMedia.map((m) => m.id);
+			const answerMediaChanged =
+				prevAnswerMediaIds.length !== nextAnswerMediaIds.length ||
+				prevAnswerMediaIds.some((id, i) => id !== nextAnswerMediaIds[i]);
+			const nextYoutubeId = extractYouTubeId(youtubeUrl);
+			const nextAnswerYoutubeId = extractYouTubeId(answerYoutubeUrl);
+			const youtubeChanged = nextYoutubeId !== question.youtubeId;
+			const answerYoutubeChanged =
+				nextAnswerYoutubeId !== question.answerYoutubeId;
+			const hostNotesChanged = hostNotes !== (question.hostNotes ?? "");
+			const buzzWindowChanged =
+				buzzWindowMs !== (question.buzzWindowMs ?? null);
 			const changed =
 				clue !== question.clue ||
 				answer !== question.answer ||
 				pointValue !== question.pointValue ||
 				isDD !== question.isDailyDouble ||
-				mediaChanged;
+				mediaChanged ||
+				answerMediaChanged ||
+				youtubeChanged ||
+				answerYoutubeChanged ||
+				hostNotesChanged ||
+				buzzWindowChanged;
 			if (!changed) return;
 			await api.questions({ id: question.id }).patch({
 				clue,
@@ -323,107 +416,468 @@ function QuestionEditor({
 				pointValue,
 				isDailyDouble: isDD,
 				...(mediaChanged ? { mediaIds: nextMediaIds } : {}),
+				...(answerMediaChanged ? { answerMediaIds: nextAnswerMediaIds } : {}),
+				...(youtubeChanged ? { youtubeId: nextYoutubeId } : {}),
+				...(answerYoutubeChanged
+					? { answerYoutubeId: nextAnswerYoutubeId }
+					: {}),
+				...(hostNotesChanged ? { hostNotes: hostNotes || null } : {}),
+				...(buzzWindowChanged ? { buzzWindowMs } : {}),
 			});
 			await qc.invalidateQueries({ queryKey: ["quiz", quizId] });
 			setSavedAt(Date.now());
 		}, 500);
 		return () => clearTimeout(handle);
-	}, [clue, answer, pointValue, isDD, media, question, qc, quizId]);
+	}, [
+		clue,
+		answer,
+		pointValue,
+		isDD,
+		media,
+		answerMedia,
+		youtubeUrl,
+		answerYoutubeUrl,
+		hostNotes,
+		buzzWindowMs,
+		question,
+		qc,
+		quizId,
+	]);
 
 	return (
 		<div
 			role="dialog"
 			aria-modal="true"
 			aria-label="Edit question"
-			className="fixed inset-0 z-10 p-4 flex items-center justify-center"
+			className="fixed inset-0 z-10 flex items-center justify-center p-4"
 		>
-			{/* Backdrop is a real button so click-away has built-in
-			    keyboard a11y (Enter/Space close it too). The panel sits
-			    on top of it — no event-bubbling tricks needed. */}
 			<button
 				type="button"
 				aria-label="Close dialog"
-				className="absolute inset-0 bg-background/90 backdrop-blur"
+				className="absolute inset-0 bg-background/80 backdrop-blur-sm"
 				onClick={onClose}
 			/>
-			<div className="relative bg-card border rounded-2xl p-4 w-full max-w-lg space-y-3">
-				<header className="flex items-center justify-between">
-					<h2 className="font-semibold">Question</h2>
-					<button type="button" onClick={onClose} className="text-sm underline">
-						Close
+
+			<div className="relative bg-card border rounded-2xl w-full max-w-xl shadow-2xl flex flex-col max-h-[90dvh]">
+				{/* Header */}
+				<div className="flex items-center justify-between px-5 pt-5 pb-3 shrink-0">
+					<h2 className="font-heading font-bold text-lg">Edit question</h2>
+					<button
+						type="button"
+						onClick={onClose}
+						className="text-sm text-muted-foreground hover:text-foreground flex items-center gap-1.5 transition-colors"
+					>
+						Close ✕
 					</button>
-				</header>
-				<div className="space-y-1">
-					<label htmlFor={clueId} className="text-sm">
+				</div>
+
+				{/* Tabs */}
+				<div className="flex border-b border-border mx-5 shrink-0">
+					<button
+						type="button"
+						onClick={() => setTab("question")}
+						className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors -mb-px ${
+							tab === "question"
+								? "border-primary text-foreground"
+								: "border-transparent text-muted-foreground hover:text-foreground"
+						}`}
+					>
+						<span
+							className={`flex items-center justify-center w-5 h-5 rounded text-[11px] font-bold ${tab === "question" ? "bg-primary/20 text-primary" : "bg-muted text-muted-foreground"}`}
+						>
+							<HugeiconsIcon icon={HelpCircleIcon} size={13} strokeWidth={2} />
+						</span>
 						Question
-					</label>
-					<textarea
-						id={clueId}
-						value={clue}
-						onChange={(e) => setClue(e.target.value)}
-						maxLength={500}
-						rows={3}
-						className="w-full rounded-md border bg-background px-2 py-1"
-					/>
-				</div>
-				<div className="space-y-1">
-					<span className="text-sm">Pictures</span>
-					<MediaPicker value={media} onChange={setMedia} />
-				</div>
-				<div className="space-y-1">
-					<label htmlFor={answerId} className="text-sm">
+					</button>
+					<button
+						type="button"
+						onClick={() => setTab("answer")}
+						className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors -mb-px ${
+							tab === "answer"
+								? "border-emerald-500 text-foreground"
+								: "border-transparent text-muted-foreground hover:text-foreground"
+						}`}
+					>
+						<span
+							className={`flex items-center justify-center w-5 h-5 rounded text-[11px] font-bold ${tab === "answer" ? "bg-emerald-500/20 text-emerald-400" : "bg-muted text-muted-foreground"}`}
+						>
+							<HugeiconsIcon
+								icon={CheckmarkCircle01Icon}
+								size={13}
+								strokeWidth={2}
+							/>
+						</span>
 						Answer
-					</label>
-					<input
-						id={answerId}
-						value={answer}
-						onChange={(e) => setAnswer(e.target.value)}
-						maxLength={200}
-						className="w-full rounded-md border bg-background px-2 py-1"
-					/>
+					</button>
+					<button
+						type="button"
+						onClick={() => setTab("options")}
+						className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors -mb-px ${
+							tab === "options"
+								? "border-muted-foreground text-foreground"
+								: "border-transparent text-muted-foreground hover:text-foreground"
+						}`}
+					>
+						<span
+							className={`flex items-center justify-center w-5 h-5 rounded ${tab === "options" ? "bg-muted text-foreground" : "bg-muted text-muted-foreground"}`}
+						>
+							<HugeiconsIcon icon={Settings01Icon} size={13} strokeWidth={2} />
+						</span>
+						Options
+					</button>
 				</div>
-				<div className="grid grid-cols-2 gap-3">
-					<div className="space-y-1">
-						<label htmlFor={pointsId} className="text-sm">
-							Points
-						</label>
-						<input
-							id={pointsId}
-							type="number"
-							min={100}
-							max={2000}
-							step={100}
-							value={pointValue}
-							onChange={(e) => setPointValue(Number(e.target.value))}
-							className="w-full rounded-md border bg-background px-2 py-1"
-						/>
+
+				{/* Scrollable body */}
+				<div className="overflow-y-auto flex-1 px-5 py-4 space-y-4">
+					{tab === "question" ? (
+						<>
+							<div className="space-y-1.5">
+								<textarea
+									id={clueId}
+									value={clue}
+									onChange={(e) => setClue(e.target.value)}
+									maxLength={1000}
+									rows={4}
+									placeholder="Write your question here…"
+									className="w-full rounded-lg border bg-background px-3 py-2 text-sm resize-none focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
+								/>
+								<p className="text-right text-xs text-muted-foreground">
+									{clue.length} / 1000
+								</p>
+							</div>
+							<div className="space-y-1.5">
+								<span className="text-sm font-medium">Question pictures</span>
+								<MediaPicker value={media} onChange={setMedia} />
+							</div>
+							<div className="space-y-1.5">
+								<label htmlFor={clueVideoId} className="text-sm font-medium">
+									Question video{" "}
+									<span className="font-normal text-muted-foreground">
+										(YouTube URL or ID)
+									</span>
+								</label>
+								<input
+									id={clueVideoId}
+									value={youtubeUrl}
+									onChange={(e) => setYoutubeUrl(e.target.value)}
+									placeholder="https://youtu.be/…"
+									className="w-full rounded-lg border bg-background px-3 py-2 text-sm focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
+								/>
+								{extractYouTubeId(youtubeUrl) && (
+									<iframe
+										src={`https://www.youtube.com/embed/${extractYouTubeId(youtubeUrl)}`}
+										className="w-full aspect-video rounded-md border mt-1"
+										allow="autoplay; encrypted-media"
+										allowFullScreen
+										title="Clue video preview"
+									/>
+								)}
+							</div>
+						</>
+					) : tab === "answer" ? (
+						<>
+							<div className="space-y-1.5">
+								<textarea
+									id={answerId}
+									value={answer}
+									onChange={(e) => setAnswer(e.target.value)}
+									maxLength={1000}
+									rows={4}
+									placeholder="Write the answer here…"
+									className="w-full rounded-lg border bg-background px-3 py-2 text-sm resize-none focus:outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20"
+								/>
+								<p className="text-right text-xs text-muted-foreground">
+									{answer.length} / 1000
+								</p>
+							</div>
+							<div className="space-y-1.5">
+								<span className="text-sm font-medium">Answer pictures</span>
+								<MediaPicker value={answerMedia} onChange={setAnswerMedia} />
+							</div>
+							<div className="space-y-1.5">
+								<label htmlFor={answerVideoId} className="text-sm font-medium">
+									Answer video{" "}
+									<span className="font-normal text-muted-foreground">
+										(YouTube URL or ID)
+									</span>
+								</label>
+								<input
+									id={answerVideoId}
+									value={answerYoutubeUrl}
+									onChange={(e) => setAnswerYoutubeUrl(e.target.value)}
+									placeholder="https://youtu.be/…"
+									className="w-full rounded-lg border bg-background px-3 py-2 text-sm focus:outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20"
+								/>
+								{extractYouTubeId(answerYoutubeUrl) && (
+									<iframe
+										src={`https://www.youtube.com/embed/${extractYouTubeId(answerYoutubeUrl)}`}
+										className="w-full aspect-video rounded-md border mt-1"
+										allow="autoplay; encrypted-media"
+										allowFullScreen
+										title="Answer video preview"
+									/>
+								)}
+							</div>
+						</>
+					) : (
+						<div className="space-y-6">
+							{/* Row 1: Points + Delay side by side */}
+							<div className="grid grid-cols-2 gap-4">
+								<div className="space-y-1.5">
+									<label htmlFor={pointsId} className="text-sm font-medium">
+										Points
+									</label>
+									{manualPoints ? (
+										<div className="w-full rounded-lg border bg-muted px-3 py-2 text-sm text-muted-foreground cursor-not-allowed">
+											Manual point assignment is on
+										</div>
+									) : (
+										<input
+											id={pointsId}
+											type="number"
+											min={100}
+											max={2000}
+											step={100}
+											value={pointValue}
+											onChange={(e) => setPointValue(Number(e.target.value))}
+											className="w-full rounded-lg border bg-background px-3 py-2 text-sm focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+										/>
+									)}
+								</div>
+								<div className="space-y-1.5">
+									<label htmlFor={buzzWindowId} className="text-sm font-medium">
+										Delay before buzz{" "}
+										<span className="font-normal text-muted-foreground">
+											(ms)
+										</span>
+									</label>
+									<input
+										id={buzzWindowId}
+										type="number"
+										min={0}
+										max={30000}
+										step={500}
+										placeholder="Global default"
+										value={buzzWindowMs ?? ""}
+										onChange={(e) =>
+											setBuzzWindowMs(
+												e.target.value === "" ? null : Number(e.target.value),
+											)
+										}
+										className="w-full rounded-lg border bg-background px-3 py-2 text-sm focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+									/>
+								</div>
+							</div>
+
+							{/* Row 2: Daily Double toggle */}
+							<label className="flex items-center gap-3 cursor-pointer w-fit">
+								<input
+									type="checkbox"
+									checked={isDD}
+									onChange={(e) => setIsDD(e.target.checked)}
+									className="size-4 rounded"
+								/>
+								<span className="text-sm font-medium">Daily Double</span>
+							</label>
+
+							{/* Row 3: Host notes full width */}
+							<div className="space-y-1.5">
+								<div className="flex items-baseline justify-between">
+									<label htmlFor={hostNotesId} className="text-sm font-medium">
+										Host notes
+									</label>
+									<span className="text-xs text-muted-foreground">
+										{hostNotes.length} / 1000
+									</span>
+								</div>
+								<textarea
+									id={hostNotesId}
+									value={hostNotes}
+									onChange={(e) => setHostNotes(e.target.value)}
+									maxLength={1000}
+									rows={5}
+									placeholder="Alternate answers, judging guidance…"
+									className="w-full rounded-lg border bg-background px-3 py-2 text-sm resize-none focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
+								/>
+							</div>
+						</div>
+					)}
+				</div>
+
+				{/* Footer */}
+				<div className="flex items-center justify-between px-5 py-4 border-t border-border shrink-0">
+					<p className="text-xs text-muted-foreground">
+						{savedAt
+							? `Saved at ${new Date(savedAt).toLocaleTimeString()}`
+							: "Changes save automatically"}
+					</p>
+					<div className="flex gap-2">
+						<Button variant="outline" onClick={onClose}>
+							Cancel
+						</Button>
+						<Button onClick={onClose}>Done</Button>
 					</div>
-					<label className="flex items-end gap-2">
-						<input
-							type="checkbox"
-							checked={isDD}
-							onChange={(e) => setIsDD(e.target.checked)}
-						/>
-						<span className="text-sm">Daily Double</span>
-					</label>
 				</div>
-				<p className="text-xs text-muted-foreground h-4">
-					{savedAt && `Saved at ${new Date(savedAt).toLocaleTimeString()}`}
-				</p>
 			</div>
 		</div>
 	);
 }
 
-function HostButton({ quizId }: { quizId: string }) {
-	const navigate = useNavigate();
+interface GameSettings {
+	manualPoints: boolean;
+	finalEnabled: boolean;
+	readDelayMs: number;
+}
+
+function GameSettingsContext({
+	quizId,
+	settings,
+	onChange,
+}: {
+	quizId: string;
+	settings: GameSettings;
+	onChange: (s: GameSettings) => void;
+}) {
+	return (
+		<>
+			<HostButton quizId={quizId} settings={settings} />
+			<SettingsButton settings={settings} onChange={onChange} />
+		</>
+	);
+}
+
+function SettingsButton({
+	settings,
+	onChange,
+}: {
+	settings: GameSettings;
+	onChange: (s: GameSettings) => void;
+}) {
 	const [open, setOpen] = useState(false);
-	const [busy, setBusy] = useState(false);
-	const [error, setError] = useState<string | null>(null);
-	const [finalEnabled, setFinalEnabled] = useState(true);
-	const [readDelayMs, setReadDelayMs] = useState(3000);
+	const manualId = useId();
 	const finalId = useId();
 	const delayId = useId();
+
+	useEffect(() => {
+		if (!open) return;
+		function onKey(e: KeyboardEvent) {
+			if (e.key === "Escape") setOpen(false);
+		}
+		window.addEventListener("keydown", onKey);
+		return () => window.removeEventListener("keydown", onKey);
+	}, [open]);
+
+	return (
+		<>
+			<Button variant="outline" onClick={() => setOpen(true)}>
+				Settings
+			</Button>
+			{open && (
+				<div
+					role="dialog"
+					aria-modal="true"
+					aria-label="Game settings"
+					className="fixed inset-0 z-20 p-4 flex items-center justify-center"
+				>
+					<button
+						type="button"
+						aria-label="Close dialog"
+						className="absolute inset-0 bg-background/90 backdrop-blur"
+						onClick={() => setOpen(false)}
+					/>
+					<div className="relative bg-card border rounded-2xl p-5 w-full max-w-sm space-y-4 glow-primary">
+						<h2 className="font-heading font-bold text-lg">Game settings</h2>
+
+						<label
+							htmlFor={manualId}
+							className="flex items-center gap-3 text-sm cursor-pointer"
+						>
+							<input
+								id={manualId}
+								type="checkbox"
+								checked={settings.manualPoints}
+								onChange={(e) =>
+									onChange({ ...settings, manualPoints: e.target.checked })
+								}
+								className="size-4"
+							/>
+							<span>
+								<span className="block font-medium">
+									Manual point assignment
+								</span>
+								<span className="block text-xs text-muted-foreground">
+									Disable automatic scoring. Host assigns points manually during
+									gameplay.
+								</span>
+							</span>
+						</label>
+
+						<label
+							htmlFor={finalId}
+							className="flex items-center gap-3 text-sm cursor-pointer"
+						>
+							<input
+								id={finalId}
+								type="checkbox"
+								checked={settings.finalEnabled}
+								onChange={(e) =>
+									onChange({ ...settings, finalEnabled: e.target.checked })
+								}
+								className="size-4"
+							/>
+							<span>
+								<span className="block font-medium">Final Jeopardy</span>
+								<span className="block text-xs text-muted-foreground">
+									Play a final round after the board is cleared (requires a
+									final question on the quiz).
+								</span>
+							</span>
+						</label>
+
+						<div className="space-y-1">
+							<label
+								htmlFor={delayId}
+								className="text-xs font-semibold uppercase tracking-wider text-muted-foreground"
+							>
+								Read delay (ms)
+							</label>
+							<input
+								id={delayId}
+								type="number"
+								min={0}
+								max={10000}
+								step={500}
+								value={settings.readDelayMs}
+								onChange={(e) =>
+									onChange({ ...settings, readDelayMs: Number(e.target.value) })
+								}
+								className="w-full rounded-md border bg-input px-3 py-2 focus:outline-none focus:border-primary focus:ring-3 focus:ring-ring/40"
+							/>
+							<p className="text-xs text-muted-foreground">
+								Time before buzzers open after the host opens a question.
+							</p>
+						</div>
+
+						<div className="flex justify-end">
+							<Button onClick={() => setOpen(false)}>Done</Button>
+						</div>
+					</div>
+				</div>
+			)}
+		</>
+	);
+}
+
+function HostButton({
+	quizId,
+	settings,
+}: {
+	quizId: string;
+	settings: GameSettings;
+}) {
+	const navigate = useNavigate();
+	const [busy, setBusy] = useState(false);
+	const [error, setError] = useState<string | null>(null);
 
 	async function host() {
 		setBusy(true);
@@ -433,10 +887,7 @@ function HostButton({ quizId }: { quizId: string }) {
 				method: "POST",
 				credentials: "include",
 				headers: { "Content-Type": "application/json" },
-				body: JSON.stringify({
-					quizId,
-					options: { finalEnabled, readDelayMs },
-				}),
+				body: JSON.stringify({ quizId, options: settings }),
 			});
 			if (res.status === 409) {
 				setError("You already have an active game.");
@@ -456,85 +907,12 @@ function HostButton({ quizId }: { quizId: string }) {
 		}
 	}
 
-	useEffect(() => {
-		if (!open) return;
-		function onKey(e: KeyboardEvent) {
-			if (e.key === "Escape") setOpen(false);
-		}
-		window.addEventListener("keydown", onKey);
-		return () => window.removeEventListener("keydown", onKey);
-	}, [open]);
-
 	return (
 		<>
-			<Button onClick={() => setOpen(true)}>Host game</Button>
+			<Button onClick={host} disabled={busy}>
+				{busy ? "Starting…" : "Host game"}
+			</Button>
 			{error && <span className="text-xs text-destructive">{error}</span>}
-			{open && (
-				<div
-					role="dialog"
-					aria-modal="true"
-					aria-label="Host game options"
-					className="fixed inset-0 z-20 p-4 flex items-center justify-center"
-				>
-					<button
-						type="button"
-						aria-label="Close dialog"
-						className="absolute inset-0 bg-background/90 backdrop-blur"
-						onClick={() => setOpen(false)}
-					/>
-					<div className="relative bg-card border rounded-2xl p-5 w-full max-w-sm space-y-4 glow-primary">
-						<h2 className="font-heading font-bold text-lg">Game options</h2>
-						<label
-							htmlFor={finalId}
-							className="flex items-center gap-3 text-sm cursor-pointer"
-						>
-							<input
-								id={finalId}
-								type="checkbox"
-								checked={finalEnabled}
-								onChange={(e) => setFinalEnabled(e.target.checked)}
-								className="size-4"
-							/>
-							<span>
-								<span className="block font-medium">Final Jeopardy</span>
-								<span className="block text-xs text-muted-foreground">
-									Play a final round after the board is cleared (requires a
-									final question on the quiz).
-								</span>
-							</span>
-						</label>
-						<div className="space-y-1">
-							<label
-								htmlFor={delayId}
-								className="text-xs font-semibold uppercase tracking-wider text-muted-foreground"
-							>
-								Read delay (ms)
-							</label>
-							<input
-								id={delayId}
-								type="number"
-								min={0}
-								max={10000}
-								step={500}
-								value={readDelayMs}
-								onChange={(e) => setReadDelayMs(Number(e.target.value))}
-								className="w-full rounded-md border bg-input px-3 py-2 focus:outline-none focus:border-primary focus:ring-3 focus:ring-ring/40"
-							/>
-							<p className="text-xs text-muted-foreground">
-								Time before buzzers open after the host opens a question.
-							</p>
-						</div>
-						<div className="flex gap-2 justify-end">
-							<Button variant="outline" onClick={() => setOpen(false)}>
-								Cancel
-							</Button>
-							<Button onClick={host} disabled={busy}>
-								{busy ? "Starting…" : "Start game"}
-							</Button>
-						</div>
-					</div>
-				</div>
-			)}
 		</>
 	);
 }

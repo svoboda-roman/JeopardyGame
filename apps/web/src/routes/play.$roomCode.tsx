@@ -156,6 +156,7 @@ function PlayPage() {
 						currentWager={game.currentWager}
 						clue={game.currentQuestion.clue}
 						media={game.currentQuestion.media ?? []}
+						youtubeId={game.currentQuestion.youtubeId ?? null}
 					/>
 				)}
 
@@ -406,6 +407,7 @@ function ClueCard({
 	currentWager,
 	clue,
 	media,
+	youtubeId,
 }: {
 	category: string | null;
 	pointValue: number;
@@ -413,6 +415,7 @@ function ClueCard({
 	currentWager: number | null;
 	clue: string;
 	media: { id: string; mime: string; url: string }[];
+	youtubeId: string | null;
 }) {
 	const stake = currentWager ?? pointValue;
 	return (
@@ -442,6 +445,17 @@ function ClueCard({
 							className="max-h-56 rounded-md border"
 						/>
 					))}
+				</div>
+			)}
+			{youtubeId && (
+				<div className="px-4 pt-4">
+					<iframe
+						src={`https://www.youtube.com/embed/${youtubeId}`}
+						className="w-full aspect-video rounded-md border"
+						allow="autoplay; encrypted-media"
+						allowFullScreen
+						title="Question video"
+					/>
 				</div>
 			)}
 			<p className="px-4 py-5 text-xl leading-snug font-medium text-center">

@@ -2,6 +2,7 @@ import { and, asc, eq, inArray } from "drizzle-orm";
 import { Elysia, t } from "elysia";
 import { db } from "../db/client.ts";
 import {
+	answerMedia as answerMediaTable,
 	category as categoryTable,
 	finalQuestion as finalQuestionTable,
 	media as mediaTable,
@@ -149,19 +150,35 @@ export const quizzes = new Elysia({ tags: ["quizzes"] })
 			: [];
 
 		const qIds = questionRows.map((q) => q.id);
-		const mediaJoins = qIds.length
-			? await db
-					.select({
-						questionId: questionMediaTable.questionId,
-						position: questionMediaTable.position,
-						id: mediaTable.id,
-						mime: mediaTable.mime,
-					})
-					.from(questionMediaTable)
-					.innerJoin(mediaTable, eq(mediaTable.id, questionMediaTable.mediaId))
-					.where(inArray(questionMediaTable.questionId, qIds))
-					.orderBy(asc(questionMediaTable.position))
-			: [];
+		const [mediaJoins, answerMediaJoins] = qIds.length
+			? await Promise.all([
+					db
+						.select({
+							questionId: questionMediaTable.questionId,
+							position: questionMediaTable.position,
+							id: mediaTable.id,
+							mime: mediaTable.mime,
+						})
+						.from(questionMediaTable)
+						.innerJoin(
+							mediaTable,
+							eq(mediaTable.id, questionMediaTable.mediaId),
+						)
+						.where(inArray(questionMediaTable.questionId, qIds))
+						.orderBy(asc(questionMediaTable.position)),
+					db
+						.select({
+							questionId: answerMediaTable.questionId,
+							position: answerMediaTable.position,
+							id: mediaTable.id,
+							mime: mediaTable.mime,
+						})
+						.from(answerMediaTable)
+						.innerJoin(mediaTable, eq(mediaTable.id, answerMediaTable.mediaId))
+						.where(inArray(answerMediaTable.questionId, qIds))
+						.orderBy(asc(answerMediaTable.position)),
+				])
+			: [[], []];
 
 		const mediaByQ: Record<
 			string,
@@ -172,10 +189,20 @@ export const quizzes = new Elysia({ tags: ["quizzes"] })
 			list.push({ id: m.id, mime: m.mime, url: `/media/${m.id}/file` });
 			mediaByQ[m.questionId] = list;
 		}
+		const answerMediaByQ: Record<
+			string,
+			{ id: string; mime: string; url: string }[]
+		> = {};
+		for (const m of answerMediaJoins) {
+			const list = answerMediaByQ[m.questionId] ?? [];
+			list.push({ id: m.id, mime: m.mime, url: `/media/${m.id}/file` });
+			answerMediaByQ[m.questionId] = list;
+		}
 
 		const questions = questionRows.map((q) => ({
 			...q,
 			media: mediaByQ[q.id] ?? [],
+			answerMedia: answerMediaByQ[q.id] ?? [],
 		}));
 
 		const final = (
@@ -206,6 +233,7 @@ export const quizzes = new Elysia({ tags: ["quizzes"] })
 					...(body.description !== undefined
 						? { description: body.description }
 						: {}),
+					...(body.settings !== undefined ? { settings: body.settings } : {}),
 					updatedAt: new Date(),
 				})
 				.where(eq(quizTable.id, params.id))
@@ -218,6 +246,7 @@ export const quizzes = new Elysia({ tags: ["quizzes"] })
 				description: t.Optional(
 					t.Union([t.String({ maxLength: 1000 }), t.Null()]),
 				),
+				settings: t.Optional(t.Record(t.String(), t.Unknown())),
 			}),
 		},
 	)
@@ -328,9 +357,11 @@ export const quizzes = new Elysia({ tags: ["quizzes"] })
 			const u = await requireUser(request);
 			await ownedQuestion(params.id, u.id);
 
-			if (body.mediaIds !== undefined) {
-				const ids = body.mediaIds;
-				if (ids.length > 0) {
+			for (const [fieldName, ids] of [
+				["mediaIds", body.mediaIds],
+				["answerMediaIds", body.answerMediaIds],
+			] as const) {
+				if (ids !== undefined && ids.length > 0) {
 					const owned = await db
 						.select({ id: mediaTable.id })
 						.from(mediaTable)
@@ -341,7 +372,7 @@ export const quizzes = new Elysia({ tags: ["quizzes"] })
 						throw new HttpError(
 							422,
 							"invalid_media",
-							"One or more media ids are not owned by you or do not exist",
+							`One or more ${fieldName} are not owned by you or do not exist`,
 						);
 					}
 				}
@@ -356,6 +387,18 @@ export const quizzes = new Elysia({ tags: ["quizzes"] })
 						: {}),
 					...(body.isDailyDouble !== undefined
 						? { isDailyDouble: body.isDailyDouble }
+						: {}),
+					...(body.youtubeId !== undefined
+						? { youtubeId: body.youtubeId }
+						: {}),
+					...(body.answerYoutubeId !== undefined
+						? { answerYoutubeId: body.answerYoutubeId }
+						: {}),
+					...(body.hostNotes !== undefined
+						? { hostNotes: body.hostNotes }
+						: {}),
+					...(body.buzzWindowMs !== undefined
+						? { buzzWindowMs: body.buzzWindowMs }
 						: {}),
 				};
 				const [row] =
@@ -385,6 +428,21 @@ export const quizzes = new Elysia({ tags: ["quizzes"] })
 					}
 				}
 
+				if (body.answerMediaIds !== undefined) {
+					await tx
+						.delete(answerMediaTable)
+						.where(eq(answerMediaTable.questionId, params.id));
+					if (body.answerMediaIds.length > 0) {
+						await tx.insert(answerMediaTable).values(
+							body.answerMediaIds.map((mediaId, position) => ({
+								questionId: params.id,
+								mediaId,
+								position,
+							})),
+						);
+					}
+				}
+
 				return row;
 			});
 
@@ -398,6 +456,19 @@ export const quizzes = new Elysia({ tags: ["quizzes"] })
 				isDailyDouble: t.Optional(t.Boolean()),
 				mediaIds: t.Optional(
 					t.Array(t.String(), { maxItems: MAX_MEDIA_PER_QUESTION }),
+				),
+				answerMediaIds: t.Optional(
+					t.Array(t.String(), { maxItems: MAX_MEDIA_PER_QUESTION }),
+				),
+				youtubeId: t.Optional(t.Union([t.String({ maxLength: 11 }), t.Null()])),
+				answerYoutubeId: t.Optional(
+					t.Union([t.String({ maxLength: 11 }), t.Null()]),
+				),
+				hostNotes: t.Optional(
+					t.Union([t.String({ maxLength: 1000 }), t.Null()]),
+				),
+				buzzWindowMs: t.Optional(
+					t.Union([t.Integer({ minimum: 0, maximum: 30000 }), t.Null()]),
 				),
 			}),
 		},

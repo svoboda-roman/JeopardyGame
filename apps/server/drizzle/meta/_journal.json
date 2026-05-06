@@ -43,6 +43,34 @@
       "when": 1777791286696,
       "tag": "0005_modern_doorman",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1778048615588,
+      "tag": "0006_hot_nebula",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1778049092601,
+      "tag": "0007_giant_bloodscream",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1746531600000,
+      "tag": "0008_question_options",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1746618000000,
+      "tag": "0009_quiz_settings",
+      "breakpoints": true
     }
   ]
 }

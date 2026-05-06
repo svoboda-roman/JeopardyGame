@@ -2,6 +2,7 @@ import { and, asc, count, desc, eq, inArray, or, sql } from "drizzle-orm";
 import { Elysia, t } from "elysia";
 import { db } from "../db/client.ts";
 import {
+	answerMedia as answerMediaTable,
 	category as categoryTable,
 	finalQuestion as finalQuestionTable,
 	gamePlayer as gamePlayerTable,
@@ -63,25 +64,48 @@ async function snapshotQuiz(
 				).then((r) => r.flat());
 
 	const allQIds = allQs.map((qq) => qq.id);
-	const mediaJoins = allQIds.length
-		? await db
-				.select({
-					questionId: questionMediaTable.questionId,
-					position: questionMediaTable.position,
-					id: mediaTable.id,
-					mime: mediaTable.mime,
-				})
-				.from(questionMediaTable)
-				.innerJoin(mediaTable, eq(mediaTable.id, questionMediaTable.mediaId))
-				.where(inArray(questionMediaTable.questionId, allQIds))
-				.orderBy(asc(questionMediaTable.position))
-		: [];
+	const [mediaJoins, answerMediaJoins] = allQIds.length
+		? await Promise.all([
+				db
+					.select({
+						questionId: questionMediaTable.questionId,
+						position: questionMediaTable.position,
+						id: mediaTable.id,
+						mime: mediaTable.mime,
+					})
+					.from(questionMediaTable)
+					.innerJoin(mediaTable, eq(mediaTable.id, questionMediaTable.mediaId))
+					.where(inArray(questionMediaTable.questionId, allQIds))
+					.orderBy(asc(questionMediaTable.position)),
+				db
+					.select({
+						questionId: answerMediaTable.questionId,
+						position: answerMediaTable.position,
+						id: mediaTable.id,
+						mime: mediaTable.mime,
+					})
+					.from(answerMediaTable)
+					.innerJoin(mediaTable, eq(mediaTable.id, answerMediaTable.mediaId))
+					.where(inArray(answerMediaTable.questionId, allQIds))
+					.orderBy(asc(answerMediaTable.position)),
+			])
+		: [[], []];
+
 	const mediaByQ: Record<string, { id: string; mime: string; url: string }[]> =
 		{};
 	for (const m of mediaJoins) {
 		const list = mediaByQ[m.questionId] ?? [];
 		list.push({ id: m.id, mime: m.mime, url: `/media/${m.id}/file` });
 		mediaByQ[m.questionId] = list;
+	}
+	const answerMediaByQ: Record<
+		string,
+		{ id: string; mime: string; url: string }[]
+	> = {};
+	for (const m of answerMediaJoins) {
+		const list = answerMediaByQ[m.questionId] ?? [];
+		list.push({ id: m.id, mime: m.mime, url: `/media/${m.id}/file` });
+		answerMediaByQ[m.questionId] = list;
 	}
 
 	const questions: Record<string, InternalQuestion> = {};
@@ -95,6 +119,11 @@ async function snapshotQuiz(
 			clue: qq.clue,
 			answer: qq.answer,
 			media: mediaByQ[qq.id] ?? [],
+			answerMedia: answerMediaByQ[qq.id] ?? [],
+			youtubeId: qq.youtubeId ?? null,
+			answerYoutubeId: qq.answerYoutubeId ?? null,
+			hostNotes: qq.hostNotes ?? null,
+			buzzWindowMs: qq.buzzWindowMs ?? null,
 		};
 	}
 
@@ -147,6 +176,7 @@ export const games = new Elysia({ tags: ["games"] })
 				includeFinal: finalEnabled,
 			});
 			const readDelayMs = body.options?.readDelayMs ?? 3000;
+			const manualPoints = body.options?.manualPoints ?? false;
 
 			// Read host display name once (profile preferred, fallback to user.name).
 			const profileRow = (
@@ -191,7 +221,7 @@ export const games = new Elysia({ tags: ["games"] })
 									quizId: body.quizId,
 									hostId: u.id,
 									status: "lobby",
-									options: { readDelayMs, finalEnabled },
+									options: { readDelayMs, finalEnabled, manualPoints },
 								})
 								.returning();
 							if (!g) throw new Error("game insert returned no row");
@@ -260,6 +290,7 @@ export const games = new Elysia({ tags: ["games"] })
 					t.Object({
 						readDelayMs: t.Optional(t.Integer({ minimum: 0, maximum: 10000 })),
 						finalEnabled: t.Optional(t.Boolean()),
+						manualPoints: t.Optional(t.Boolean()),
 					}),
 				),
 			}),

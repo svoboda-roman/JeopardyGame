@@ -26,6 +26,11 @@ function tinyBoard(): InternalBoard {
 				clue: "clue 1",
 				answer: "answer 1",
 				media: [],
+				answerMedia: [],
+				youtubeId: null,
+				answerYoutubeId: null,
+				hostNotes: null,
+				buzzWindowMs: null,
 			},
 			q2: {
 				ref: "q2",
@@ -36,6 +41,11 @@ function tinyBoard(): InternalBoard {
 				clue: "clue 2",
 				answer: "answer 2",
 				media: [],
+				answerMedia: [],
+				youtubeId: null,
+				answerYoutubeId: null,
+				hostNotes: null,
+				buzzWindowMs: null,
 			},
 		},
 	};
@@ -67,15 +77,15 @@ describe("lobby + start", () => {
 		).toThrow(GameError);
 	});
 
-	it("host with 1 player → picking + game_started + picker is host", () => {
+	it("host with 1 player → picking + game_started + picker is a non-host player", () => {
 		state = addPlayer(state, { id: "p1", displayName: "P1" }).state;
 		const r = transition(state, { type: "start_game", actorId: "p-host" });
 		expect(r.state.phase).toBe("picking");
-		expect(r.state.currentPickerId).toBe("p-host");
+		expect(r.state.currentPickerId).toBe("p1");
 		expect(r.broadcasts.some((b) => b.type === "game_started")).toBe(true);
 		expect(
 			r.broadcasts.some(
-				(b) => b.type === "picker_changed" && b.playerId === "p-host",
+				(b) => b.type === "picker_changed" && b.playerId === "p1",
 			),
 		).toBe(true);
 	});
@@ -86,6 +96,12 @@ describe("one-question buzz cycle", () => {
 		state = addPlayer(state, { id: "p1", displayName: "P1" }).state;
 		state = addPlayer(state, { id: "p2", displayName: "P2" }).state;
 		state = transition(state, { type: "start_game", actorId: "p-host" }).state;
+		// Pin the picker to p2 so a correct answer from p1 always triggers picker_changed.
+		state = transition(state, {
+			type: "set_picker",
+			actorId: "p-host",
+			playerId: "p2",
+		}).state;
 		state = transition(state, {
 			type: "select_question",
 			actorId: "p-host",
