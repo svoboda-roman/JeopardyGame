@@ -7,7 +7,7 @@ import {
 import { HugeiconsIcon } from "@hugeicons/react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { useEffect, useId, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { MediaPicker, type PickedMedia } from "#/components/MediaPicker.tsx";
 import { Button } from "#/components/ui/button.tsx";
 import { api } from "#/lib/api.ts";
@@ -68,7 +68,8 @@ function EditorPage() {
 	const navigate = useNavigate();
 	const qc = useQueryClient();
 	const [settings, setSettings] = useState<GameSettings | null>(null);
-	const saveSettingsTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+	const pendingSettingsRef = useRef<GameSettings | null>(null);
+	const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
 	const { data, isLoading, error } = useQuery<QuizDetail>({
 		queryKey: ["quiz", quizId],
@@ -87,17 +88,43 @@ function EditorPage() {
 		}
 	}, [data]);
 
-	// Debounce-save settings whenever they change.
+	const flushSettings = useCallback(() => {
+		const pending = pendingSettingsRef.current;
+		if (timerRef.current) {
+			clearTimeout(timerRef.current);
+			timerRef.current = null;
+		}
+		if (!pending) return;
+		pendingSettingsRef.current = null;
+		void api.quizzes({ id: quizId }).patch({ settings: pending });
+	}, [quizId]);
+
+	// Debounce-save settings whenever they change. On unmount, flush immediately
+	// so navigating away before the 600ms window doesn't lose the change.
 	useEffect(() => {
 		if (!settings) return;
-		if (saveSettingsTimer.current) clearTimeout(saveSettingsTimer.current);
-		saveSettingsTimer.current = setTimeout(async () => {
-			await api.quizzes({ id: quizId }).patch({ settings });
+		pendingSettingsRef.current = settings;
+		if (timerRef.current) clearTimeout(timerRef.current);
+		timerRef.current = setTimeout(() => {
+			timerRef.current = null;
+			pendingSettingsRef.current = null;
+			void api.quizzes({ id: quizId }).patch({ settings });
 		}, 600);
-		return () => {
-			if (saveSettingsTimer.current) clearTimeout(saveSettingsTimer.current);
-		};
 	}, [settings, quizId]);
+
+	useEffect(() => {
+		return () => flushSettings();
+	}, [flushSettings]);
+
+	// Flush pending changes when the tab is hidden — prevents losing a
+	// toggle made just before closing the tab or switching away.
+	useEffect(() => {
+		function onVisibility() {
+			if (document.visibilityState === "hidden") flushSettings();
+		}
+		document.addEventListener("visibilitychange", onVisibility);
+		return () => document.removeEventListener("visibilitychange", onVisibility);
+	}, [flushSettings]);
 
 	const deleteMut = useMutation({
 		mutationFn: async () => {
@@ -125,6 +152,7 @@ function EditorPage() {
 						quizId={quizId}
 						settings={settings}
 						onChange={(s) => setSettings(s)}
+						onFlush={flushSettings}
 					/>
 					<ShareButton quizId={quizId} />
 					<Button
@@ -733,15 +761,21 @@ function GameSettingsContext({
 	quizId,
 	settings,
 	onChange,
+	onFlush,
 }: {
 	quizId: string;
 	settings: GameSettings;
 	onChange: (s: GameSettings) => void;
+	onFlush: () => void;
 }) {
 	return (
 		<>
 			<HostButton quizId={quizId} settings={settings} />
-			<SettingsButton settings={settings} onChange={onChange} />
+			<SettingsButton
+				settings={settings}
+				onChange={onChange}
+				onFlush={onFlush}
+			/>
 		</>
 	);
 }
@@ -749,23 +783,30 @@ function GameSettingsContext({
 function SettingsButton({
 	settings,
 	onChange,
+	onFlush,
 }: {
 	settings: GameSettings;
 	onChange: (s: GameSettings) => void;
+	onFlush: () => void;
 }) {
 	const [open, setOpen] = useState(false);
 	const manualId = useId();
 	const finalId = useId();
 	const delayId = useId();
 
+	const close = useCallback(() => {
+		onFlush();
+		setOpen(false);
+	}, [onFlush]);
+
 	useEffect(() => {
 		if (!open) return;
 		function onKey(e: KeyboardEvent) {
-			if (e.key === "Escape") setOpen(false);
+			if (e.key === "Escape") close();
 		}
 		window.addEventListener("keydown", onKey);
 		return () => window.removeEventListener("keydown", onKey);
-	}, [open]);
+	}, [open, close]);
 
 	return (
 		<>
@@ -783,7 +824,7 @@ function SettingsButton({
 						type="button"
 						aria-label="Close dialog"
 						className="absolute inset-0 bg-background/90 backdrop-blur"
-						onClick={() => setOpen(false)}
+						onClick={close}
 					/>
 					<div className="relative bg-card border rounded-2xl p-5 w-full max-w-sm space-y-4 glow-primary">
 						<h2 className="font-heading font-bold text-lg">Game settings</h2>
@@ -859,7 +900,7 @@ function SettingsButton({
 						</div>
 
 						<div className="flex justify-end">
-							<Button onClick={() => setOpen(false)}>Done</Button>
+							<Button onClick={close}>Done</Button>
 						</div>
 					</div>
 				</div>
