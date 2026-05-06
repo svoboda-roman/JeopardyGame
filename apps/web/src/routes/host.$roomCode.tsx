@@ -972,7 +972,7 @@ function LobbySettingsButton({
 						className="absolute inset-0 bg-background/90 backdrop-blur"
 						onClick={close}
 					/>
-					<div className="relative bg-card border rounded-2xl p-5 w-full max-w-sm space-y-4 glow-primary">
+					<div className="relative bg-card border rounded-2xl p-5 w-full max-w-sm space-y-4 glow-primary overflow-y-auto max-h-[85dvh]">
 						<h2 className="font-heading font-bold text-lg">Game settings</h2>
 
 						<label
