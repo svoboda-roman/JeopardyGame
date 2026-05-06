@@ -246,7 +246,13 @@ export const quizzes = new Elysia({ tags: ["quizzes"] })
 				description: t.Optional(
 					t.Union([t.String({ maxLength: 1000 }), t.Null()]),
 				),
-				settings: t.Optional(t.Any()),
+				settings: t.Optional(
+					t.Object({
+						manualPoints: t.Optional(t.Boolean()),
+						finalEnabled: t.Optional(t.Boolean()),
+						readDelayMs: t.Optional(t.Integer({ minimum: 0, maximum: 10000 })),
+					}),
+				),
 			}),
 		},
 	)
