@@ -6,6 +6,7 @@ import { useEffect, useId, useRef, useState } from "react";
 import { MediaPicker, type PickedMedia } from "#/components/MediaPicker.tsx";
 import { Button } from "#/components/ui/button.tsx";
 import { api } from "#/lib/api.ts";
+import { extractYouTubeId } from "#/lib/utils.ts";
 
 const apiUrl = import.meta.env.VITE_API_URL ?? "http://localhost:3000";
 
@@ -33,6 +34,9 @@ interface Question {
 	clue: string;
 	answer: string;
 	media: PickedMedia[];
+	answerMedia: PickedMedia[];
+	youtubeId: string | null;
+	answerYoutubeId: string | null;
 }
 interface QuizDetail {
 	quiz: Quiz;
@@ -77,7 +81,7 @@ function EditorPage() {
 					← All quizzes
 				</Link>
 				<div className="flex gap-2">
-					<HostButton quizId={quizId} />
+					<GameSettingsContext quizId={quizId} />
 					<ShareButton quizId={quizId} />
 					<Button
 						variant="destructive"
@@ -288,10 +292,25 @@ function QuestionEditor({
 	const [pointValue, setPointValue] = useState(question.pointValue);
 	const [isDD, setIsDD] = useState(question.isDailyDouble);
 	const [media, setMedia] = useState<PickedMedia[]>(question.media ?? []);
+	const [answerMedia, setAnswerMedia] = useState<PickedMedia[]>(
+		question.answerMedia ?? [],
+	);
+	const [youtubeUrl, setYoutubeUrl] = useState(
+		question.youtubeId
+			? `https://www.youtube.com/watch?v=${question.youtubeId}`
+			: "",
+	);
+	const [answerYoutubeUrl, setAnswerYoutubeUrl] = useState(
+		question.answerYoutubeId
+			? `https://www.youtube.com/watch?v=${question.answerYoutubeId}`
+			: "",
+	);
 	const [savedAt, setSavedAt] = useState<number | null>(null);
 	const clueId = useId();
 	const answerId = useId();
 	const pointsId = useId();
+	const clueVideoId = useId();
+	const answerVideoId = useId();
 
 	// Close on Escape — keyboard a11y for the modal.
 	useEffect(() => {
@@ -310,12 +329,25 @@ function QuestionEditor({
 			const mediaChanged =
 				prevMediaIds.length !== nextMediaIds.length ||
 				prevMediaIds.some((id, i) => id !== nextMediaIds[i]);
+			const prevAnswerMediaIds = (question.answerMedia ?? []).map((m) => m.id);
+			const nextAnswerMediaIds = answerMedia.map((m) => m.id);
+			const answerMediaChanged =
+				prevAnswerMediaIds.length !== nextAnswerMediaIds.length ||
+				prevAnswerMediaIds.some((id, i) => id !== nextAnswerMediaIds[i]);
+			const nextYoutubeId = extractYouTubeId(youtubeUrl);
+			const nextAnswerYoutubeId = extractYouTubeId(answerYoutubeUrl);
+			const youtubeChanged = nextYoutubeId !== question.youtubeId;
+			const answerYoutubeChanged =
+				nextAnswerYoutubeId !== question.answerYoutubeId;
 			const changed =
 				clue !== question.clue ||
 				answer !== question.answer ||
 				pointValue !== question.pointValue ||
 				isDD !== question.isDailyDouble ||
-				mediaChanged;
+				mediaChanged ||
+				answerMediaChanged ||
+				youtubeChanged ||
+				answerYoutubeChanged;
 			if (!changed) return;
 			await api.questions({ id: question.id }).patch({
 				clue,
@@ -323,12 +355,29 @@ function QuestionEditor({
 				pointValue,
 				isDailyDouble: isDD,
 				...(mediaChanged ? { mediaIds: nextMediaIds } : {}),
+				...(answerMediaChanged ? { answerMediaIds: nextAnswerMediaIds } : {}),
+				...(youtubeChanged ? { youtubeId: nextYoutubeId } : {}),
+				...(answerYoutubeChanged
+					? { answerYoutubeId: nextAnswerYoutubeId }
+					: {}),
 			});
 			await qc.invalidateQueries({ queryKey: ["quiz", quizId] });
 			setSavedAt(Date.now());
 		}, 500);
 		return () => clearTimeout(handle);
-	}, [clue, answer, pointValue, isDD, media, question, qc, quizId]);
+	}, [
+		clue,
+		answer,
+		pointValue,
+		isDD,
+		media,
+		answerMedia,
+		youtubeUrl,
+		answerYoutubeUrl,
+		question,
+		qc,
+		quizId,
+	]);
 
 	return (
 		<div
@@ -371,6 +420,27 @@ function QuestionEditor({
 					<MediaPicker value={media} onChange={setMedia} />
 				</div>
 				<div className="space-y-1">
+					<label htmlFor={clueVideoId} className="text-sm">
+						Video (YouTube URL or ID)
+					</label>
+					<input
+						id={clueVideoId}
+						value={youtubeUrl}
+						onChange={(e) => setYoutubeUrl(e.target.value)}
+						placeholder="https://youtu.be/..."
+						className="w-full rounded-md border bg-background px-2 py-1 text-sm"
+					/>
+					{extractYouTubeId(youtubeUrl) && (
+						<iframe
+							src={`https://www.youtube.com/embed/${extractYouTubeId(youtubeUrl)}`}
+							className="w-full aspect-video rounded-md border mt-1"
+							allow="autoplay; encrypted-media"
+							allowFullScreen
+							title="Clue video preview"
+						/>
+					)}
+				</div>
+				<div className="space-y-1">
 					<label htmlFor={answerId} className="text-sm">
 						Answer
 					</label>
@@ -381,6 +451,31 @@ function QuestionEditor({
 						maxLength={200}
 						className="w-full rounded-md border bg-background px-2 py-1"
 					/>
+				</div>
+				<div className="space-y-1">
+					<span className="text-sm">Answer pictures</span>
+					<MediaPicker value={answerMedia} onChange={setAnswerMedia} />
+				</div>
+				<div className="space-y-1">
+					<label htmlFor={answerVideoId} className="text-sm">
+						Answer video (YouTube URL or ID)
+					</label>
+					<input
+						id={answerVideoId}
+						value={answerYoutubeUrl}
+						onChange={(e) => setAnswerYoutubeUrl(e.target.value)}
+						placeholder="https://youtu.be/..."
+						className="w-full rounded-md border bg-background px-2 py-1 text-sm"
+					/>
+					{extractYouTubeId(answerYoutubeUrl) && (
+						<iframe
+							src={`https://www.youtube.com/embed/${extractYouTubeId(answerYoutubeUrl)}`}
+							className="w-full aspect-video rounded-md border mt-1"
+							allow="autoplay; encrypted-media"
+							allowFullScreen
+							title="Answer video preview"
+						/>
+					)}
 				</div>
 				<div className="grid grid-cols-2 gap-3">
 					<div className="space-y-1">
@@ -415,15 +510,158 @@ function QuestionEditor({
 	);
 }
 
-function HostButton({ quizId }: { quizId: string }) {
-	const navigate = useNavigate();
+interface GameSettings {
+	manualPoints: boolean;
+	finalEnabled: boolean;
+	readDelayMs: number;
+}
+
+function GameSettingsContext({ quizId }: { quizId: string }) {
+	const [settings, setSettings] = useState<GameSettings>({
+		manualPoints: false,
+		finalEnabled: true,
+		readDelayMs: 3000,
+	});
+	return (
+		<>
+			<HostButton quizId={quizId} settings={settings} />
+			<SettingsButton settings={settings} onChange={setSettings} />
+		</>
+	);
+}
+
+function SettingsButton({
+	settings,
+	onChange,
+}: {
+	settings: GameSettings;
+	onChange: (s: GameSettings) => void;
+}) {
 	const [open, setOpen] = useState(false);
-	const [busy, setBusy] = useState(false);
-	const [error, setError] = useState<string | null>(null);
-	const [finalEnabled, setFinalEnabled] = useState(true);
-	const [readDelayMs, setReadDelayMs] = useState(3000);
+	const manualId = useId();
 	const finalId = useId();
 	const delayId = useId();
+
+	useEffect(() => {
+		if (!open) return;
+		function onKey(e: KeyboardEvent) {
+			if (e.key === "Escape") setOpen(false);
+		}
+		window.addEventListener("keydown", onKey);
+		return () => window.removeEventListener("keydown", onKey);
+	}, [open]);
+
+	return (
+		<>
+			<Button variant="outline" onClick={() => setOpen(true)}>
+				Settings
+			</Button>
+			{open && (
+				<div
+					role="dialog"
+					aria-modal="true"
+					aria-label="Game settings"
+					className="fixed inset-0 z-20 p-4 flex items-center justify-center"
+				>
+					<button
+						type="button"
+						aria-label="Close dialog"
+						className="absolute inset-0 bg-background/90 backdrop-blur"
+						onClick={() => setOpen(false)}
+					/>
+					<div className="relative bg-card border rounded-2xl p-5 w-full max-w-sm space-y-4 glow-primary">
+						<h2 className="font-heading font-bold text-lg">Game settings</h2>
+
+						<label
+							htmlFor={manualId}
+							className="flex items-center gap-3 text-sm cursor-pointer"
+						>
+							<input
+								id={manualId}
+								type="checkbox"
+								checked={settings.manualPoints}
+								onChange={(e) =>
+									onChange({ ...settings, manualPoints: e.target.checked })
+								}
+								className="size-4"
+							/>
+							<span>
+								<span className="block font-medium">
+									Manual point assignment
+								</span>
+								<span className="block text-xs text-muted-foreground">
+									Disable automatic scoring. Host assigns points manually during
+									gameplay.
+								</span>
+							</span>
+						</label>
+
+						<label
+							htmlFor={finalId}
+							className="flex items-center gap-3 text-sm cursor-pointer"
+						>
+							<input
+								id={finalId}
+								type="checkbox"
+								checked={settings.finalEnabled}
+								onChange={(e) =>
+									onChange({ ...settings, finalEnabled: e.target.checked })
+								}
+								className="size-4"
+							/>
+							<span>
+								<span className="block font-medium">Final Jeopardy</span>
+								<span className="block text-xs text-muted-foreground">
+									Play a final round after the board is cleared (requires a
+									final question on the quiz).
+								</span>
+							</span>
+						</label>
+
+						<div className="space-y-1">
+							<label
+								htmlFor={delayId}
+								className="text-xs font-semibold uppercase tracking-wider text-muted-foreground"
+							>
+								Read delay (ms)
+							</label>
+							<input
+								id={delayId}
+								type="number"
+								min={0}
+								max={10000}
+								step={500}
+								value={settings.readDelayMs}
+								onChange={(e) =>
+									onChange({ ...settings, readDelayMs: Number(e.target.value) })
+								}
+								className="w-full rounded-md border bg-input px-3 py-2 focus:outline-none focus:border-primary focus:ring-3 focus:ring-ring/40"
+							/>
+							<p className="text-xs text-muted-foreground">
+								Time before buzzers open after the host opens a question.
+							</p>
+						</div>
+
+						<div className="flex justify-end">
+							<Button onClick={() => setOpen(false)}>Done</Button>
+						</div>
+					</div>
+				</div>
+			)}
+		</>
+	);
+}
+
+function HostButton({
+	quizId,
+	settings,
+}: {
+	quizId: string;
+	settings: GameSettings;
+}) {
+	const navigate = useNavigate();
+	const [busy, setBusy] = useState(false);
+	const [error, setError] = useState<string | null>(null);
 
 	async function host() {
 		setBusy(true);
@@ -433,10 +671,7 @@ function HostButton({ quizId }: { quizId: string }) {
 				method: "POST",
 				credentials: "include",
 				headers: { "Content-Type": "application/json" },
-				body: JSON.stringify({
-					quizId,
-					options: { finalEnabled, readDelayMs },
-				}),
+				body: JSON.stringify({ quizId, options: settings }),
 			});
 			if (res.status === 409) {
 				setError("You already have an active game.");
@@ -456,85 +691,12 @@ function HostButton({ quizId }: { quizId: string }) {
 		}
 	}
 
-	useEffect(() => {
-		if (!open) return;
-		function onKey(e: KeyboardEvent) {
-			if (e.key === "Escape") setOpen(false);
-		}
-		window.addEventListener("keydown", onKey);
-		return () => window.removeEventListener("keydown", onKey);
-	}, [open]);
-
 	return (
 		<>
-			<Button onClick={() => setOpen(true)}>Host game</Button>
+			<Button onClick={host} disabled={busy}>
+				{busy ? "Starting…" : "Host game"}
+			</Button>
 			{error && <span className="text-xs text-destructive">{error}</span>}
-			{open && (
-				<div
-					role="dialog"
-					aria-modal="true"
-					aria-label="Host game options"
-					className="fixed inset-0 z-20 p-4 flex items-center justify-center"
-				>
-					<button
-						type="button"
-						aria-label="Close dialog"
-						className="absolute inset-0 bg-background/90 backdrop-blur"
-						onClick={() => setOpen(false)}
-					/>
-					<div className="relative bg-card border rounded-2xl p-5 w-full max-w-sm space-y-4 glow-primary">
-						<h2 className="font-heading font-bold text-lg">Game options</h2>
-						<label
-							htmlFor={finalId}
-							className="flex items-center gap-3 text-sm cursor-pointer"
-						>
-							<input
-								id={finalId}
-								type="checkbox"
-								checked={finalEnabled}
-								onChange={(e) => setFinalEnabled(e.target.checked)}
-								className="size-4"
-							/>
-							<span>
-								<span className="block font-medium">Final Jeopardy</span>
-								<span className="block text-xs text-muted-foreground">
-									Play a final round after the board is cleared (requires a
-									final question on the quiz).
-								</span>
-							</span>
-						</label>
-						<div className="space-y-1">
-							<label
-								htmlFor={delayId}
-								className="text-xs font-semibold uppercase tracking-wider text-muted-foreground"
-							>
-								Read delay (ms)
-							</label>
-							<input
-								id={delayId}
-								type="number"
-								min={0}
-								max={10000}
-								step={500}
-								value={readDelayMs}
-								onChange={(e) => setReadDelayMs(Number(e.target.value))}
-								className="w-full rounded-md border bg-input px-3 py-2 focus:outline-none focus:border-primary focus:ring-3 focus:ring-ring/40"
-							/>
-							<p className="text-xs text-muted-foreground">
-								Time before buzzers open after the host opens a question.
-							</p>
-						</div>
-						<div className="flex gap-2 justify-end">
-							<Button variant="outline" onClick={() => setOpen(false)}>
-								Cancel
-							</Button>
-							<Button onClick={host} disabled={busy}>
-								{busy ? "Starting…" : "Start game"}
-							</Button>
-						</div>
-					</div>
-				</div>
-			)}
 		</>
 	);
 }

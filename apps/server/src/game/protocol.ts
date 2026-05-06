@@ -38,6 +38,9 @@ export interface QuestionView {
 	clue: string;
 	answer: string;
 	media: QuestionMediaView[];
+	answerMedia: QuestionMediaView[];
+	youtubeId: string | null;
+	answerYoutubeId: string | null;
 }
 
 export interface BoardCategoryView {
@@ -79,6 +82,7 @@ export interface GameView {
 	roomCode: string;
 	hostId: string;
 	phase: Phase;
+	manualPoints: boolean;
 	players: PlayerView[];
 	board: BoardCategoryView[];
 	currentQuestion: QuestionView | null;
@@ -113,6 +117,7 @@ export type ClientToServer =
 			verdict: "correct" | "incorrect" | "no_answer";
 	  }
 	| { type: "set_picker"; playerId: string }
+	| { type: "adjust_score"; playerId: string; delta: number }
 	| { type: "leave" }
 	| { type: "ping" };
 
@@ -169,5 +174,11 @@ export type ServerToClient =
 	  }
 	| { type: "fj_done" }
 	| { type: "game_completed" }
+	| {
+			type: "score_adjusted";
+			playerId: string;
+			delta: number;
+			newScore: number;
+	  }
 	| { type: "pong" }
 	| { type: "error"; code: string; message: string };

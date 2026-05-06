@@ -155,30 +155,13 @@ function HostPage() {
 			</header>
 
 			<section className="rounded-2xl border bg-card/80 backdrop-blur-sm p-4 sm:p-5">
-				<div className="flex items-center justify-between mb-3">
-					<div className="flex items-center gap-2">
-						<h2 className="text-[10px] font-semibold uppercase tracking-[0.2em] text-muted-foreground">
-							Players
-						</h2>
-						<span className="text-[10px] tabular-nums text-muted-foreground bg-input rounded-full px-2 py-0.5">
-							{nonHost.length}
-						</span>
-					</div>
-					<div className="flex items-center gap-2">
-						{game.phase === "picking" && nonHost.length > 0 && (
-							<>
-								<span className="text-xs text-muted-foreground hidden sm:inline">
-									<span className="text-[color:var(--gold)]">★</span> Selecting
-									question:
-								</span>
-								<PickerOverride
-									players={nonHost}
-									currentId={game.currentPickerId}
-									onPick={(id) => send({ type: "set_picker", playerId: id })}
-								/>
-							</>
-						)}
-					</div>
+				<div className="flex items-center gap-2 mb-3">
+					<h2 className="text-[10px] font-semibold uppercase tracking-[0.2em] text-muted-foreground">
+						Players
+					</h2>
+					<span className="text-[10px] tabular-nums text-muted-foreground bg-input rounded-full px-2 py-0.5">
+						{nonHost.length}
+					</span>
 				</div>
 				{nonHost.length === 0 ? (
 					<p className="text-sm text-muted-foreground text-center py-6">
@@ -189,6 +172,10 @@ function HostPage() {
 						players={nonHost}
 						currentPlayerId={game.currentPlayerId}
 						currentPickerId={game.currentPickerId}
+						manualPoints={game.manualPoints}
+						onAdjust={(playerId, delta) =>
+							send({ type: "adjust_score", playerId, delta })
+						}
 					/>
 				)}
 			</section>
@@ -258,6 +245,9 @@ function HostPage() {
 						pointValue={game.currentQuestion.pointValue}
 						isDailyDouble={game.currentQuestion.isDailyDouble}
 						media={game.currentQuestion.media ?? []}
+						answerMedia={game.currentQuestion.answerMedia ?? []}
+						youtubeId={game.currentQuestion.youtubeId ?? null}
+						answerYoutubeId={game.currentQuestion.answerYoutubeId ?? null}
 						currentWager={game.currentWager}
 						buzzedName={buzzed?.displayName ?? null}
 						phase={game.phase}
@@ -307,10 +297,14 @@ function RankedPlayers({
 	players,
 	currentPlayerId,
 	currentPickerId,
+	manualPoints,
+	onAdjust,
 }: {
 	players: PlayerLite[];
 	currentPlayerId: string | null;
 	currentPickerId: string | null;
+	manualPoints: boolean;
+	onAdjust: (playerId: string, delta: number) => void;
 }) {
 	const itemRefs = useRef(new Map<string, HTMLLIElement>());
 	const prevRects = useRef(new Map<string, DOMRect>());
@@ -408,10 +402,40 @@ function RankedPlayers({
 								<>${p.score}</>
 							)}
 						</div>
+						{manualPoints && !p.isHost && (
+							<ScoreAdjuster playerId={p.id} onAdjust={onAdjust} />
+						)}
 					</li>
 				);
 			})}
 		</ul>
+	);
+}
+
+function ScoreAdjuster({
+	playerId,
+	onAdjust,
+}: {
+	playerId: string;
+	onAdjust: (playerId: string, delta: number) => void;
+}) {
+	return (
+		<div className="flex items-center gap-1.5 mt-2.5 pt-2 border-t border-white/5">
+			<button
+				type="button"
+				onClick={() => onAdjust(playerId, 100)}
+				className="flex-1 rounded-lg py-1 text-xs font-bold bg-green-500/10 text-green-400 hover:bg-green-500/20 active:scale-95 transition-all"
+			>
+				+100
+			</button>
+			<button
+				type="button"
+				onClick={() => onAdjust(playerId, -100)}
+				className="flex-1 rounded-lg py-1 text-xs font-bold bg-red-500/10 text-red-400 hover:bg-red-500/20 active:scale-95 transition-all"
+			>
+				−100
+			</button>
+		</div>
 	);
 }
 
@@ -421,6 +445,9 @@ function QuestionModal({
 	pointValue,
 	isDailyDouble,
 	media,
+	answerMedia,
+	youtubeId,
+	answerYoutubeId,
 	currentWager,
 	buzzedName,
 	phase,
@@ -432,6 +459,9 @@ function QuestionModal({
 	pointValue: number;
 	isDailyDouble: boolean;
 	media: { id: string; mime: string; url: string }[];
+	answerMedia: { id: string; mime: string; url: string }[];
+	youtubeId: string | null;
+	answerYoutubeId: string | null;
 	currentWager: number | null;
 	buzzedName: string | null;
 	phase: string;
@@ -473,11 +503,9 @@ function QuestionModal({
 								✦
 							</span>
 						) : (
-							<>
-								<span className="score text-lg">
-									${currentWager ?? pointValue}
-								</span>
-							</>
+							<span className="score text-lg">
+								${currentWager ?? pointValue}
+							</span>
 						)}
 					</div>
 
@@ -494,6 +522,18 @@ function QuestionModal({
 						</div>
 					)}
 
+					{youtubeId && (
+						<div className="flex justify-center">
+							<iframe
+								src={`https://www.youtube.com/embed/${youtubeId}`}
+								className="w-full max-w-2xl aspect-video rounded-md border"
+								allow="autoplay; encrypted-media"
+								allowFullScreen
+								title="Question video"
+							/>
+						</div>
+					)}
+
 					<p className="text-2xl sm:text-4xl leading-snug text-center font-heading font-medium text-balance">
 						{clue}
 					</p>
@@ -503,9 +543,34 @@ function QuestionModal({
 							Answer
 						</p>
 						{revealed ? (
-							<p className="text-xl sm:text-2xl text-center font-medium text-[color:var(--gold)] animate-in fade-in slide-in-from-bottom-1 duration-300">
-								{answer}
-							</p>
+							<>
+								{answerMedia.length > 0 && (
+									<div className="flex flex-wrap justify-center gap-3">
+										{answerMedia.map((m) => (
+											<img
+												key={m.id}
+												src={apiUrl(m.url)}
+												alt=""
+												className="max-h-48 rounded-md border"
+											/>
+										))}
+									</div>
+								)}
+								{answerYoutubeId && (
+									<div className="flex justify-center">
+										<iframe
+											src={`https://www.youtube.com/embed/${answerYoutubeId}`}
+											className="w-full max-w-xl aspect-video rounded-md border"
+											allow="autoplay; encrypted-media"
+											allowFullScreen
+											title="Answer video"
+										/>
+									</div>
+								)}
+								<p className="text-xl sm:text-2xl text-center font-medium text-[color:var(--gold)] animate-in fade-in slide-in-from-bottom-1 duration-300">
+									{answer}
+								</p>
+							</>
 						) : (
 							<div className="flex justify-center">
 								<Button
@@ -555,37 +620,6 @@ function QuestionModal({
 				</div>
 			</div>
 		</div>
-	);
-}
-
-function PickerOverride({
-	players,
-	currentId,
-	onPick,
-}: {
-	players: { id: string; displayName: string }[];
-	currentId: string | null;
-	onPick: (id: string) => void;
-}) {
-	return (
-		<select
-			aria-label="Choose who selects the next question"
-			value={currentId ?? ""}
-			onChange={(e) => {
-				const v = e.target.value;
-				if (v) onPick(v);
-			}}
-			className="text-xs bg-input border rounded-md px-2.5 py-1.5 focus:outline-none focus:border-primary hover:border-primary/60 transition-colors cursor-pointer"
-		>
-			<option value="" disabled>
-				Who's selecting?
-			</option>
-			{players.map((p) => (
-				<option key={p.id} value={p.id}>
-					{p.displayName}
-				</option>
-			))}
-		</select>
 	);
 }
 

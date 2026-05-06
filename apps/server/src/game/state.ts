@@ -16,6 +16,7 @@ export const EARLY_BUZZ_LOCKOUT_MS = 500;
 export interface GameOptions {
 	readDelayMs: number;
 	finalEnabled: boolean;
+	manualPoints: boolean;
 }
 
 export interface InternalFinalQuestion {
@@ -33,6 +34,9 @@ export interface InternalQuestion {
 	clue: string;
 	answer: string;
 	media: QuestionMediaView[];
+	answerMedia: QuestionMediaView[];
+	youtubeId: string | null;
+	answerYoutubeId: string | null;
 }
 
 export interface InternalBoard {
@@ -129,6 +133,7 @@ export function newGame(args: {
 		options: {
 			readDelayMs: args.options?.readDelayMs ?? DEFAULT_READ_DELAY_MS,
 			finalEnabled: args.options?.finalEnabled ?? false,
+			manualPoints: args.options?.manualPoints ?? false,
 		},
 		phase: "lobby",
 		players: {
@@ -196,6 +201,7 @@ export function projectView(state: GameState): GameView {
 		roomCode: state.roomCode,
 		hostId: state.hostId,
 		phase: state.phase,
+		manualPoints: state.options.manualPoints,
 		players: Object.values(state.players)
 			.sort((a, b) =>
 				a.isHost === b.isHost
@@ -337,6 +343,7 @@ export type Intent =
 	  }
 	| { type: "close_question"; actorId: string }
 	| { type: "set_picker"; actorId: string; playerId: string }
+	| { type: "adjust_score"; actorId: string; playerId: string; delta: number }
 	| { type: "wager"; actorId: string; amount: number }
 	| { type: "start_final"; actorId: string }
 	| { type: "fj_wager"; actorId: string; amount: number }
@@ -365,20 +372,22 @@ export function transition(state: GameState, intent: Intent): TransitionResult {
 			requireHost(state, intent.actorId);
 			if (state.phase !== "lobby")
 				throw new GameError("invalid_state", "Already started");
-			const playerCount = Object.values(state.players).filter(
+			const nonHostPlayers = Object.values(state.players).filter(
 				(p) => !p.isHost,
-			).length;
-			if (playerCount < 1)
+			);
+			if (nonHostPlayers.length < 1)
 				throw new GameError("not_enough_players", "Need ≥ 1 non-host player");
-			// Host is the first picker; rotates on correct answers (FR-MG handled in `judge`).
+			// biome-ignore lint/style/noNonNullAssertion: length checked above
+			const firstPicker =
+				nonHostPlayers[Math.floor(Math.random() * nonHostPlayers.length)]!;
 			const next: GameState = {
 				...state,
 				phase: "picking",
-				currentPickerId: intent.actorId,
+				currentPickerId: firstPicker.id,
 			};
 			return ok(next, [
 				{ type: "game_started" },
-				{ type: "picker_changed", playerId: intent.actorId },
+				{ type: "picker_changed", playerId: firstPicker.id },
 			]);
 		}
 
@@ -472,6 +481,9 @@ export function transition(state: GameState, intent: Intent): TransitionResult {
 						clue: q.clue,
 						answer: q.answer,
 						media: q.media,
+						answerMedia: q.answerMedia,
+						youtubeId: q.youtubeId,
+						answerYoutubeId: q.answerYoutubeId,
 					},
 					opensBuzzAt: new Date(buzzOpensAtMs).toISOString(),
 				},
@@ -522,11 +534,13 @@ export function transition(state: GameState, intent: Intent): TransitionResult {
 			if (!p) throw new GameError("not_found", "Unknown player");
 
 			// DD: the wager is at stake, no_answer treated as incorrect (sub-plan decision).
+			// When manualPoints is on, scoring is driven by adjust_score instead.
 			const wager = state.currentWager;
 			const isDD = wager !== null;
 			const stake = isDD ? wager : q.pointValue;
-			const delta =
-				intent.verdict === "correct"
+			const delta = state.options.manualPoints
+				? 0
+				: intent.verdict === "correct"
 					? stake
 					: intent.verdict === "incorrect" ||
 							(isDD && intent.verdict === "no_answer")
@@ -680,6 +694,9 @@ export function transition(state: GameState, intent: Intent): TransitionResult {
 						clue: q.clue,
 						answer: q.answer,
 						media: q.media,
+						answerMedia: q.answerMedia,
+						youtubeId: q.youtubeId,
+						answerYoutubeId: q.answerYoutubeId,
 					},
 					wager: intent.amount,
 					pickerId: intent.actorId,
@@ -700,6 +717,29 @@ export function transition(state: GameState, intent: Intent): TransitionResult {
 			if (state.currentPickerId === intent.playerId) return ok(state);
 			const next: GameState = { ...state, currentPickerId: intent.playerId };
 			return ok(next, [{ type: "picker_changed", playerId: intent.playerId }]);
+		}
+
+		case "adjust_score": {
+			requireHost(state, intent.actorId);
+			const target = state.players[intent.playerId];
+			if (!target || target.isHost)
+				throw new GameError("not_found", "No such player");
+			const newScore = target.score + intent.delta;
+			const next: GameState = {
+				...state,
+				players: {
+					...state.players,
+					[intent.playerId]: { ...target, score: newScore },
+				},
+			};
+			return ok(next, [
+				{
+					type: "score_adjusted",
+					playerId: intent.playerId,
+					delta: intent.delta,
+					newScore,
+				},
+			]);
 		}
 
 		case "start_final": {
