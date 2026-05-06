@@ -132,6 +132,15 @@ export const createGameStore = () =>
 					set({ game: { ...g, players } });
 					return;
 				}
+				case "score_adjusted": {
+					const g = get().game;
+					if (!g) return;
+					const players = g.players.map((p) =>
+						p.id === msg.playerId ? { ...p, score: msg.newScore } : p,
+					);
+					set({ game: { ...g, players } });
+					return;
+				}
 				case "question_closed": {
 					const g = get().game;
 					if (!g) return;

@@ -114,6 +114,10 @@ export const quiz = pgTable("quiz", {
 		.references(() => user.id, { onDelete: "cascade" }),
 	title: text("title").notNull(),
 	description: text("description"),
+	settings: jsonb("settings")
+		.$type<Record<string, unknown>>()
+		.notNull()
+		.default({}),
 	createdAt: timestamp("created_at", { withTimezone: true })
 		.notNull()
 		.defaultNow(),
@@ -147,6 +151,10 @@ export const question = pgTable(
 		isDailyDouble: boolean("is_daily_double").notNull().default(false),
 		clue: text("clue").notNull().default(""),
 		answer: text("answer").notNull().default(""),
+		youtubeId: text("youtube_id"),
+		answerYoutubeId: text("answer_youtube_id"),
+		hostNotes: text("host_notes"),
+		buzzWindowMs: integer("buzz_window_ms"),
 	},
 	(t) => [unique("question_category_position_uk").on(t.categoryId, t.position)],
 );
@@ -182,6 +190,23 @@ export const questionMedia = pgTable(
 	(t) => [
 		unique("question_media_pk").on(t.questionId, t.mediaId),
 		unique("question_media_position_uk").on(t.questionId, t.position),
+	],
+);
+
+export const answerMedia = pgTable(
+	"answer_media",
+	{
+		questionId: text("question_id")
+			.notNull()
+			.references(() => question.id, { onDelete: "cascade" }),
+		mediaId: text("media_id")
+			.notNull()
+			.references(() => media.id, { onDelete: "cascade" }),
+		position: integer("position").notNull(),
+	},
+	(t) => [
+		unique("answer_media_pk").on(t.questionId, t.mediaId),
+		unique("answer_media_position_uk").on(t.questionId, t.position),
 	],
 );
 

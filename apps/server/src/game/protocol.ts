@@ -41,6 +41,7 @@ export interface QuestionView {
 	answerMedia: QuestionMediaView[];
 	youtubeId: string | null;
 	answerYoutubeId: string | null;
+	hostNotes: string | null;
 }
 
 export interface BoardCategoryView {

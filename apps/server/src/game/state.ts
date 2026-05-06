@@ -37,6 +37,8 @@ export interface InternalQuestion {
 	answerMedia: QuestionMediaView[];
 	youtubeId: string | null;
 	answerYoutubeId: string | null;
+	hostNotes: string | null;
+	buzzWindowMs: number | null;
 }
 
 export interface InternalBoard {
@@ -377,9 +379,10 @@ export function transition(state: GameState, intent: Intent): TransitionResult {
 			);
 			if (nonHostPlayers.length < 1)
 				throw new GameError("not_enough_players", "Need ≥ 1 non-host player");
-			// biome-ignore lint/style/noNonNullAssertion: length checked above
-			const firstPicker =
-				nonHostPlayers[Math.floor(Math.random() * nonHostPlayers.length)]!;
+			const pickIdx = Math.floor(Math.random() * nonHostPlayers.length);
+			const firstPicker = nonHostPlayers[pickIdx] ?? nonHostPlayers[0];
+			if (!firstPicker)
+				throw new GameError("not_enough_players", "Need ≥ 1 non-host player");
 			const next: GameState = {
 				...state,
 				phase: "picking",
@@ -464,7 +467,8 @@ export function transition(state: GameState, intent: Intent): TransitionResult {
 				throw new GameError("invalid_state", "No question selected");
 			const q = state.board.questions[state.currentQuestionRef];
 			if (!q) throw new GameError("not_found", "Unknown question");
-			const buzzOpensAtMs = intent.nowMs + state.options.readDelayMs;
+			const buzzOpensAtMs =
+				intent.nowMs + (q.buzzWindowMs ?? state.options.readDelayMs);
 			const next: GameState = {
 				...state,
 				phase: "reading",
@@ -484,6 +488,7 @@ export function transition(state: GameState, intent: Intent): TransitionResult {
 						answerMedia: q.answerMedia,
 						youtubeId: q.youtubeId,
 						answerYoutubeId: q.answerYoutubeId,
+						hostNotes: q.hostNotes,
 					},
 					opensBuzzAt: new Date(buzzOpensAtMs).toISOString(),
 				},
@@ -697,6 +702,7 @@ export function transition(state: GameState, intent: Intent): TransitionResult {
 						answerMedia: q.answerMedia,
 						youtubeId: q.youtubeId,
 						answerYoutubeId: q.answerYoutubeId,
+						hostNotes: q.hostNotes,
 					},
 					wager: intent.amount,
 					pickerId: intent.actorId,

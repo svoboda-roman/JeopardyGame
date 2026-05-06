@@ -39,6 +39,7 @@ function baseGame(): GameView {
 		currentPlayerId: null,
 		currentPickerId: null,
 		currentWager: null,
+		manualPoints: false,
 		finalJeopardy: null,
 	};
 }
@@ -75,6 +76,10 @@ describe("game store reducer", () => {
 				clue: "A clue",
 				answer: "An answer",
 				media: [],
+				answerMedia: [],
+				youtubeId: null,
+				answerYoutubeId: null,
+				hostNotes: null,
 			},
 			opensBuzzAt: "2026-04-30T05:00:00.000Z",
 		});
@@ -119,6 +124,10 @@ describe("game store reducer", () => {
 				clue: "A",
 				answer: "a",
 				media: [],
+				answerMedia: [],
+				youtubeId: null,
+				answerYoutubeId: null,
+				hostNotes: null,
 			},
 			opensBuzzAt: "x",
 		});
@@ -169,6 +178,10 @@ describe("game store reducer", () => {
 				clue: "DD clue",
 				answer: "DD answer",
 				media: [],
+				answerMedia: [],
+				youtubeId: null,
+				answerYoutubeId: null,
+				hostNotes: null,
 			},
 			wager: 500,
 			pickerId: "p1",

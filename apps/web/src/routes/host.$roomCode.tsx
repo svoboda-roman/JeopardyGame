@@ -248,6 +248,7 @@ function HostPage() {
 						answerMedia={game.currentQuestion.answerMedia ?? []}
 						youtubeId={game.currentQuestion.youtubeId ?? null}
 						answerYoutubeId={game.currentQuestion.answerYoutubeId ?? null}
+						hostNotes={game.currentQuestion.hostNotes ?? null}
 						currentWager={game.currentWager}
 						buzzedName={buzzed?.displayName ?? null}
 						phase={game.phase}
@@ -448,6 +449,7 @@ function QuestionModal({
 	answerMedia,
 	youtubeId,
 	answerYoutubeId,
+	hostNotes,
 	currentWager,
 	buzzedName,
 	phase,
@@ -462,6 +464,7 @@ function QuestionModal({
 	answerMedia: { id: string; mime: string; url: string }[];
 	youtubeId: string | null;
 	answerYoutubeId: string | null;
+	hostNotes: string | null;
 	currentWager: number | null;
 	buzzedName: string | null;
 	phase: string;
@@ -479,7 +482,7 @@ function QuestionModal({
 			className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/85 backdrop-blur-md animate-in fade-in duration-200"
 		>
 			<div
-				className={`relative w-full max-w-3xl border rounded-2xl bg-gradient-to-br from-card to-card/60 overflow-hidden ${
+				className={`relative w-full max-w-3xl max-h-[90dvh] overflow-y-auto border rounded-2xl bg-gradient-to-br from-card to-card/60 ${
 					isDailyDouble
 						? "ring-2 ring-[color:var(--gold)]/50 shadow-[0_0_60px_var(--gold-dim)]"
 						: "glow-primary"
@@ -509,6 +512,10 @@ function QuestionModal({
 						)}
 					</div>
 
+					<p className="text-2xl sm:text-4xl leading-snug text-center font-heading font-medium text-balance break-words [overflow-wrap:anywhere]">
+						{clue}
+					</p>
+
 					{media.length > 0 && (
 						<div className="flex flex-wrap justify-center gap-3">
 							{media.map((m) => (
@@ -534,9 +541,16 @@ function QuestionModal({
 						</div>
 					)}
 
-					<p className="text-2xl sm:text-4xl leading-snug text-center font-heading font-medium text-balance">
-						{clue}
-					</p>
+					{hostNotes && (
+						<div className="rounded-lg border border-amber-500/30 bg-amber-500/5 px-3 py-2">
+							<p className="text-[10px] font-semibold uppercase tracking-wider text-amber-400/80 mb-1">
+								Host notes
+							</p>
+							<p className="text-sm text-amber-200/90 whitespace-pre-wrap">
+								{hostNotes}
+							</p>
+						</div>
+					)}
 
 					<div className="border-t border-border/60 pt-5 space-y-3">
 						<p className="text-[10px] font-semibold uppercase tracking-[0.3em] text-muted-foreground text-center">
@@ -544,6 +558,9 @@ function QuestionModal({
 						</p>
 						{revealed ? (
 							<>
+								<p className="text-xl sm:text-2xl text-center font-medium text-[color:var(--gold)] animate-in fade-in slide-in-from-bottom-1 duration-300 break-words [overflow-wrap:anywhere]">
+									{answer}
+								</p>
 								{answerMedia.length > 0 && (
 									<div className="flex flex-wrap justify-center gap-3">
 										{answerMedia.map((m) => (
@@ -567,9 +584,6 @@ function QuestionModal({
 										/>
 									</div>
 								)}
-								<p className="text-xl sm:text-2xl text-center font-medium text-[color:var(--gold)] animate-in fade-in slide-in-from-bottom-1 duration-300">
-									{answer}
-								</p>
 							</>
 						) : (
 							<div className="flex justify-center">

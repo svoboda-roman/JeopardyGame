@@ -104,6 +104,13 @@ function intentFor(playerId: string, msg: ClientToServer): Intent | null {
 			return { type: "judge", actorId: playerId, verdict: msg.verdict };
 		case "set_picker":
 			return { type: "set_picker", actorId: playerId, playerId: msg.playerId };
+		case "adjust_score":
+			return {
+				type: "adjust_score",
+				actorId: playerId,
+				playerId: msg.playerId,
+				delta: msg.delta,
+			};
 		case "wager":
 			return { type: "wager", actorId: playerId, amount: msg.amount };
 		case "start_final":

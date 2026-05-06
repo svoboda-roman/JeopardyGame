@@ -29,6 +29,8 @@ function tinyBoard(): InternalBoard {
 				answerMedia: [],
 				youtubeId: null,
 				answerYoutubeId: null,
+				hostNotes: null,
+				buzzWindowMs: null,
 			},
 			q2: {
 				ref: "q2",
@@ -42,6 +44,8 @@ function tinyBoard(): InternalBoard {
 				answerMedia: [],
 				youtubeId: null,
 				answerYoutubeId: null,
+				hostNotes: null,
+				buzzWindowMs: null,
 			},
 		},
 	};
