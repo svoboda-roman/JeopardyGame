@@ -10,6 +10,12 @@ import { quizzes } from "./routes/quizzes.ts";
 import { share } from "./routes/share.ts";
 
 export const app = new Elysia()
+	.onError(({ error, request }) => {
+		const status = "status" in error ? error.status : 500;
+		if (typeof status === "number" && status >= 500) {
+			console.error("[500]", request.method, request.url, error);
+		}
+	})
 	.use(
 		openapi({
 			path: "/docs",
