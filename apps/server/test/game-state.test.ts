@@ -150,16 +150,22 @@ describe("one-question buzz cycle", () => {
 		).toThrow(GameError);
 	});
 
-	it("only first buzz wins; second buzz fails", () => {
+	it("second buzz while buzzed → queued, no phase change", () => {
 		state = tickReadDelay(state, 2000).state;
 		state = transition(state, {
 			type: "buzz",
 			actorId: "p1",
 			nowMs: 2050,
 		}).state;
-		expect(() =>
-			transition(state, { type: "buzz", actorId: "p2", nowMs: 2060 }),
-		).toThrow(GameError);
+		const r = transition(state, { type: "buzz", actorId: "p2", nowMs: 2060 });
+		expect(r.state.phase).toBe("buzzed");
+		expect(r.state.currentPlayerId).toBe("p1");
+		expect(r.state.buzzQueue).toEqual(["p2"]);
+		expect(
+			r.broadcasts.some(
+				(b) => b.type === "buzz_queue_updated" && b.queue.includes("p2"),
+			),
+		).toBe(true);
 	});
 
 	it("host cannot buzz", () => {
@@ -741,5 +747,144 @@ describe("lobby join rules", () => {
 		const r2 = addPlayer(r1.state, { id: "p1", displayName: "P1" });
 		expect(Object.keys(r2.state.players)).toHaveLength(2); // host + p1
 		expect(r2.broadcasts).toHaveLength(0);
+	});
+});
+
+describe("buzz queue", () => {
+	// Set up: host + 3 players, game started, q1 open and buzz window open.
+	beforeEach(() => {
+		state = addPlayer(state, { id: "p1", displayName: "P1" }).state;
+		state = addPlayer(state, { id: "p2", displayName: "P2" }).state;
+		state = addPlayer(state, { id: "p3", displayName: "P3" }).state;
+		state = transition(state, { type: "start_game", actorId: "p-host" }).state;
+		state = transition(state, {
+			type: "set_picker",
+			actorId: "p-host",
+			playerId: "p1",
+		}).state;
+		state = transition(state, {
+			type: "select_question",
+			actorId: "p-host",
+			questionRef: "q1",
+		}).state;
+		state = transition(state, {
+			type: "open_question",
+			actorId: "p-host",
+			nowMs: 1000,
+		}).state;
+		state = tickReadDelay(state, 2000).state; // buzz_open
+		// p1 buzzes first
+		state = transition(state, {
+			type: "buzz",
+			actorId: "p1",
+			nowMs: 2050,
+		}).state;
+		// p2 and p3 join the queue
+		state = transition(state, {
+			type: "buzz",
+			actorId: "p2",
+			nowMs: 2060,
+		}).state;
+		state = transition(state, {
+			type: "buzz",
+			actorId: "p3",
+			nowMs: 2070,
+		}).state;
+	});
+
+	it("queue preserves arrival order", () => {
+		expect(state.buzzQueue).toEqual(["p2", "p3"]);
+		expect(state.currentPlayerId).toBe("p1");
+	});
+
+	it("same player cannot enter queue twice", () => {
+		const r = transition(state, { type: "buzz", actorId: "p2", nowMs: 2080 });
+		expect(r.state.buzzQueue).toEqual(["p2", "p3"]); // unchanged
+	});
+
+	it("current answerer buzzing again is a no-op", () => {
+		// p1 holds the floor; re-buzzing is silently ignored
+		const r = transition(state, { type: "buzz", actorId: "p1", nowMs: 2080 });
+		expect(r.state.buzzQueue).toEqual(["p2", "p3"]);
+		expect(r.broadcasts).toHaveLength(0);
+	});
+
+	it("locked-out player cannot enter queue", () => {
+		// force p1 to be locked out by judging them incorrect first
+		let s = transition(state, {
+			type: "judge",
+			actorId: "p-host",
+			verdict: "incorrect",
+		}).state;
+		// s is now buzz_open with p1 locked out; p2 buzzes to become answerer
+		s = transition(s, { type: "buzz", actorId: "p2", nowMs: 3000 }).state;
+		// p3 joins queue
+		s = transition(s, { type: "buzz", actorId: "p3", nowMs: 3010 }).state;
+		// p1 is locked out — should throw
+		expect(() =>
+			transition(s, { type: "buzz", actorId: "p1", nowMs: 3020 }),
+		).toThrow(GameError);
+	});
+
+	it("next_player pops queue, sets new currentPlayerId, broadcasts both buzzed and queue_updated", () => {
+		const r = transition(state, { type: "next_player", actorId: "p-host" });
+		expect(r.state.currentPlayerId).toBe("p2");
+		expect(r.state.buzzQueue).toEqual(["p3"]);
+		expect(r.state.lockedOutOnCurrent.has("p1")).toBe(true);
+		expect(
+			r.broadcasts.some((b) => b.type === "buzzed" && b.playerId === "p2"),
+		).toBe(true);
+		expect(
+			r.broadcasts.some(
+				(b) => b.type === "buzz_queue_updated" && b.queue.length === 1,
+			),
+		).toBe(true);
+	});
+
+	it("next_player on empty queue throws", () => {
+		state = transition(state, { type: "next_player", actorId: "p-host" }).state;
+		state = transition(state, { type: "next_player", actorId: "p-host" }).state;
+		expect(() =>
+			transition(state, { type: "next_player", actorId: "p-host" }),
+		).toThrow(GameError);
+	});
+
+	it("non-host cannot call next_player", () => {
+		expect(() =>
+			transition(state, { type: "next_player", actorId: "p1" }),
+		).toThrow(GameError);
+	});
+
+	it("buzzQueue cleared when question closes", () => {
+		state = transition(state, {
+			type: "judge",
+			actorId: "p-host",
+			verdict: "correct",
+		}).state;
+		expect(state.buzzQueue).toEqual([]);
+	});
+
+	it("buzzQueue cleared when host closes question manually", () => {
+		state = transition(state, {
+			type: "close_question",
+			actorId: "p-host",
+		}).state;
+		expect(state.buzzQueue).toEqual([]);
+	});
+
+	it("full flow: two players buzz, host judges first incorrect, advances to second", () => {
+		// p1 is wrong
+		let r = transition(state, {
+			type: "judge",
+			actorId: "p-host",
+			verdict: "incorrect",
+		});
+		// judge with remaining players goes back to buzz_open and clears the queue
+		expect(r.state.phase).toBe("buzz_open");
+		expect(r.state.buzzQueue).toEqual([]);
+		// p2 buzzes in the new live window
+		r = transition(r.state, { type: "buzz", actorId: "p2", nowMs: 3000 });
+		expect(r.state.currentPlayerId).toBe("p2");
+		expect(r.state.phase).toBe("buzzed");
 	});
 });

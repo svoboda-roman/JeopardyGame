@@ -94,6 +94,8 @@ export interface GameView {
 	buzzOpensAt: string | null;
 	/** Player currently buzzed in (only set in `buzzed`) */
 	currentPlayerId: string | null;
+	/** Players queued to answer after the current player, in buzz order. */
+	buzzQueue: string[];
 	/** Player currently allowed to pick a question on the board. */
 	currentPickerId: string | null;
 	/** Wager on the current question (Daily Double). Null otherwise. */
@@ -110,6 +112,7 @@ export type ClientToServer =
 	| { type: "open_question" }
 	| { type: "close_question" }
 	| { type: "buzz" }
+	| { type: "next_player" }
 	| { type: "judge"; verdict: "correct" | "incorrect" | "no_answer" }
 	| { type: "wager"; amount: number }
 	| { type: "start_final" }
@@ -146,6 +149,7 @@ export type ServerToClient =
 	| { type: "question_open"; question: QuestionView; opensBuzzAt: string }
 	| { type: "buzz_open" }
 	| { type: "buzzed"; playerId: string }
+	| { type: "buzz_queue_updated"; queue: string[] }
 	| {
 			type: "judged";
 			playerId: string;

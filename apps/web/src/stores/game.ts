@@ -123,6 +123,12 @@ export const createGameStore = () =>
 					});
 					return;
 				}
+				case "buzz_queue_updated": {
+					const g = get().game;
+					if (!g) return;
+					set({ game: { ...g, buzzQueue: msg.queue } });
+					return;
+				}
 				case "judged": {
 					const g = get().game;
 					if (!g) return;

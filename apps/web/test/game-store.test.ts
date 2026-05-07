@@ -37,6 +37,7 @@ function baseGame(): GameView {
 		currentQuestion: null,
 		buzzOpensAt: null,
 		currentPlayerId: null,
+		buzzQueue: [],
 		currentPickerId: null,
 		currentWager: null,
 		manualPoints: false,
