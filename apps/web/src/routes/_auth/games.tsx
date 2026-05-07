@@ -1,4 +1,5 @@
-import { GameController03Icon } from "@hugeicons/core-free-icons";
+import { CrownIcon, GameController03Icon } from "@hugeicons/core-free-icons";
+import { HugeiconsIcon } from "@hugeicons/react";
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { PageHeader } from "#/components/layout/page-header.tsx";
@@ -20,6 +21,7 @@ interface HistoryEntry {
 	startedAt: string | Date | null;
 	endedAt: string | Date | null;
 	quizId: string | null;
+	winner: { displayName: string; score: number } | null;
 }
 
 function HistoryPage() {
@@ -37,7 +39,7 @@ function HistoryPage() {
 		<PageShell>
 			<PageHeader
 				title="Games"
-				description="Recent rooms you've hosted or joined."
+				description="Completed rooms you've hosted or joined."
 			/>
 
 			{isLoading && <p className="text-sm text-muted-foreground">Loading…</p>}
@@ -48,8 +50,8 @@ function HistoryPage() {
 			{data && data.games.length === 0 && (
 				<EmptyState
 					icon={GameController03Icon}
-					title="No games yet"
-					description="Once you host or join a room, it'll show up here."
+					title="No completed games yet"
+					description="Once you finish hosting or playing a room, it'll show up here."
 					action={
 						<Link to="/quizzes">
 							<Button size="lg">Go to quizzes</Button>
@@ -62,42 +64,38 @@ function HistoryPage() {
 				<ul className="divide-y divide-border/70 rounded-2xl border border-border bg-card/60 overflow-hidden">
 					{data.games.map((g) => {
 						const when = g.endedAt ?? g.startedAt ?? g.createdAt;
-						const completed = g.status === "completed";
-						const inner = (
-							<div className="flex items-center justify-between px-4 py-3.5">
-								<div className="min-w-0">
-									<p className="room-code text-sm wordmark-accent">
-										{g.roomCode}
-									</p>
-									<p className="text-xs text-muted-foreground mt-0.5">
-										{g.role === "host" ? "Hosted" : "Played"} ·{" "}
-										{new Date(when).toLocaleString()}
-									</p>
-								</div>
-								<span
-									className={`text-[10px] uppercase tracking-wider rounded-full px-2 py-1 border ${
-										completed
-											? "text-[color:var(--gold)] border-[color:var(--gold)]/40 bg-[color:var(--gold-dim)]"
-											: "text-muted-foreground border-border bg-muted/30"
-									}`}
-								>
-									{g.status}
-								</span>
-							</div>
-						);
 						return (
 							<li key={g.id}>
-								{completed ? (
-									<Link
-										to="/games/$roomCode/result"
-										params={{ roomCode: g.roomCode }}
-										className="block hover:bg-muted/40 transition-colors"
-									>
-										{inner}
-									</Link>
-								) : (
-									inner
-								)}
+								<Link
+									to="/games/$roomCode/result"
+									params={{ roomCode: g.roomCode }}
+									className="flex items-center justify-between gap-3 px-4 py-3.5 hover:bg-muted/40 transition-colors"
+								>
+									<div className="min-w-0">
+										<p className="room-code text-sm wordmark-accent">
+											{g.roomCode}
+										</p>
+										<p className="text-xs text-muted-foreground mt-0.5">
+											{g.role === "host" ? "Hosted" : "Played"} ·{" "}
+											{new Date(when).toLocaleString()}
+										</p>
+									</div>
+									{g.winner ? (
+										<span className="inline-flex items-center gap-1.5 shrink-0 rounded-full px-2.5 py-1 border border-[color:var(--gold)]/40 bg-[color:var(--gold-dim)] text-[color:var(--gold)] text-xs font-medium max-w-[55%]">
+											<HugeiconsIcon
+												icon={CrownIcon}
+												size={14}
+												aria-hidden
+												className="shrink-0"
+											/>
+											<span className="truncate">{g.winner.displayName}</span>
+										</span>
+									) : (
+										<span className="text-[10px] uppercase tracking-wider text-muted-foreground shrink-0">
+											No winner
+										</span>
+									)}
+								</Link>
 							</li>
 						);
 					})}

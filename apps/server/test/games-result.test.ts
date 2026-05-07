@@ -100,19 +100,37 @@ describe("GET /games/history", () => {
 		expect(res.status).toBe(401);
 	});
 
-	it("lists hosted games for the caller", async () => {
-		const { cookie, roomCode } = await createUserGame();
+	it("lists hosted games for the caller after completion", async () => {
+		const { cookie, gameId, roomCode } = await createUserGame();
+		const driver = new RoomDriver(roomCode, completedState(roomCode), gameId);
+		await driver.persistCompletion();
+
 		const res = await call("/games/history", { headers: { cookie } });
 		expect(res.status).toBe(200);
 		const body = (await res.json()) as {
-			games: { roomCode: string; role: "host" | "player" }[];
+			games: {
+				roomCode: string;
+				role: "host" | "player";
+				status: string;
+				winner: { displayName: string; score: number } | null;
+			}[];
 		};
 		const mine = body.games.find((g) => g.roomCode === roomCode);
 		expect(mine).toBeDefined();
 		expect(mine?.role).toBe("host");
+		expect(mine?.status).toBe("completed");
+		expect(mine?.winner?.displayName).toBe("Alice");
 	});
 
-	it("lists games where the caller joined as a logged-in player", async () => {
+	it("excludes in-progress games from history", async () => {
+		const { cookie, roomCode } = await createUserGame();
+		const res = await call("/games/history", { headers: { cookie } });
+		expect(res.status).toBe(200);
+		const body = (await res.json()) as { games: { roomCode: string }[] };
+		expect(body.games.find((g) => g.roomCode === roomCode)).toBeUndefined();
+	});
+
+	it("lists games where the caller joined as a logged-in player after completion", async () => {
 		// Host creates a game.
 		const hostCookie = await signUpAndGetCookie("Other Host");
 		const quizRes = await call("/quizzes", {
@@ -126,7 +144,9 @@ describe("GET /games/history", () => {
 			headers: { "Content-Type": "application/json", cookie: hostCookie },
 			body: JSON.stringify({ quizId: quiz.id }),
 		});
-		const { game } = (await gameRes.json()) as { game: { roomCode: string } };
+		const { game } = (await gameRes.json()) as {
+			game: { id: string; roomCode: string };
+		};
 
 		// A second authed user joins.
 		const joinerCookie = await signUpAndGetCookie("Joiner");
@@ -136,6 +156,13 @@ describe("GET /games/history", () => {
 			body: JSON.stringify({ displayName: "Joiner" }),
 		});
 		expect(joinRes.status).toBe(200);
+
+		const driver = new RoomDriver(
+			game.roomCode,
+			completedState(game.roomCode),
+			game.id,
+		);
+		await driver.persistCompletion();
 
 		const histRes = await call("/games/history", {
 			headers: { cookie: joinerCookie },

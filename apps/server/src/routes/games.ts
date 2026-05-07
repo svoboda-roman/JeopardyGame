@@ -318,22 +318,36 @@ export const games = new Elysia({ tags: ["games"] })
 				startedAt: gameTable.startedAt,
 				endedAt: gameTable.endedAt,
 				quizId: gameTable.quizId,
+				ranking: gameResultTable.ranking,
 			})
 			.from(gameTable)
 			.leftJoin(gamePlayerTable, eq(gamePlayerTable.gameId, gameTable.id))
-			.where(or(eq(gameTable.hostId, u.id), eq(gamePlayerTable.userId, u.id)))
+			.leftJoin(gameResultTable, eq(gameResultTable.gameId, gameTable.id))
+			.where(
+				and(
+					eq(gameTable.status, "completed"),
+					or(eq(gameTable.hostId, u.id), eq(gamePlayerTable.userId, u.id)),
+				),
+			)
 			.orderBy(desc(gameTable.createdAt));
 		return {
-			games: rows.map((g) => ({
-				id: g.id,
-				roomCode: g.roomCode,
-				status: g.status,
-				role: g.hostId === u.id ? ("host" as const) : ("player" as const),
-				createdAt: g.createdAt,
-				startedAt: g.startedAt,
-				endedAt: g.endedAt,
-				quizId: g.quizId,
-			})),
+			games: rows.map((g) => {
+				const ranking = (g.ranking as RankingEntry[] | null) ?? [];
+				const winner = ranking.find((r) => r.rank === 1) ?? ranking[0] ?? null;
+				return {
+					id: g.id,
+					roomCode: g.roomCode,
+					status: g.status,
+					role: g.hostId === u.id ? ("host" as const) : ("player" as const),
+					createdAt: g.createdAt,
+					startedAt: g.startedAt,
+					endedAt: g.endedAt,
+					quizId: g.quizId,
+					winner: winner
+						? { displayName: winner.displayName, score: winner.score }
+						: null,
+				};
+			}),
 		};
 	})
 
