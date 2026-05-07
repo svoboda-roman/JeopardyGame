@@ -1315,18 +1315,31 @@ function useBuzzSound(phase: string | null) {
 			ctxRef.current = ctx;
 			if (ctx.state === "suspended") void ctx.resume();
 
+			// Bell-ish "ding!" — fundamental + a couple of partials give the
+			// tone a metallic ring; sharp attack, long exponential decay so
+			// it lands with the buzz and fades naturally.
 			const now = ctx.currentTime;
-			const osc = ctx.createOscillator();
-			const gain = ctx.createGain();
-			osc.type = "square";
-			osc.frequency.setValueAtTime(880, now);
-			osc.frequency.exponentialRampToValueAtTime(440, now + 0.18);
-			gain.gain.setValueAtTime(0.0001, now);
-			gain.gain.exponentialRampToValueAtTime(0.25, now + 0.01);
-			gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.22);
-			osc.connect(gain).connect(ctx.destination);
-			osc.start(now);
-			osc.stop(now + 0.24);
+			const master = ctx.createGain();
+			master.gain.value = 0.32;
+			master.connect(ctx.destination);
+
+			const partials: { freq: number; level: number; decay: number }[] = [
+				{ freq: 880, level: 1.0, decay: 0.9 },
+				{ freq: 1320, level: 0.55, decay: 0.55 },
+				{ freq: 2640, level: 0.18, decay: 0.25 },
+			];
+			for (const p of partials) {
+				const osc = ctx.createOscillator();
+				const gain = ctx.createGain();
+				osc.type = "sine";
+				osc.frequency.setValueAtTime(p.freq, now);
+				gain.gain.setValueAtTime(0.0001, now);
+				gain.gain.exponentialRampToValueAtTime(p.level, now + 0.005);
+				gain.gain.exponentialRampToValueAtTime(0.0001, now + p.decay);
+				osc.connect(gain).connect(master);
+				osc.start(now);
+				osc.stop(now + p.decay + 0.05);
+			}
 		} catch {
 			// Browsers that block audio without a gesture will throw — silently skip.
 		}
