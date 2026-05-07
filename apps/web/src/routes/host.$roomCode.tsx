@@ -268,8 +268,11 @@ function HostPage() {
 						hostNotes={game.currentQuestion.hostNotes ?? null}
 						currentWager={game.currentWager}
 						buzzedName={buzzed?.displayName ?? null}
+						buzzQueue={game.buzzQueue ?? []}
+						players={game.players}
 						phase={game.phase}
 						onJudge={(verdict) => send({ type: "judge", verdict })}
+						onNextPlayer={() => send({ type: "next_player" })}
 						onClose={() => send({ type: "close_question" })}
 					/>
 				)}
@@ -469,8 +472,11 @@ function QuestionModal({
 	hostNotes,
 	currentWager,
 	buzzedName,
+	buzzQueue,
+	players,
 	phase,
 	onJudge,
+	onNextPlayer,
 	onClose,
 }: {
 	clue: string;
@@ -484,8 +490,11 @@ function QuestionModal({
 	hostNotes: string | null;
 	currentWager: number | null;
 	buzzedName: string | null;
+	buzzQueue: string[];
+	players: PlayerLite[];
 	phase: string;
 	onJudge: (verdict: "correct" | "incorrect" | "no_answer") => void;
+	onNextPlayer: () => void;
 	onClose: () => void;
 }) {
 	const [revealed, setRevealed] = useState(false);
@@ -633,6 +642,11 @@ function QuestionModal({
 								<Button variant="outline" onClick={() => onJudge("no_answer")}>
 									No answer
 								</Button>
+								<NextPlayerButton
+									buzzQueue={buzzQueue}
+									players={players}
+									onNextPlayer={onNextPlayer}
+								/>
 							</div>
 						</div>
 					) : (
@@ -650,6 +664,53 @@ function QuestionModal({
 					)}
 				</div>
 			</div>
+		</div>
+	);
+}
+
+function NextPlayerButton({
+	buzzQueue,
+	players,
+	onNextPlayer,
+}: {
+	buzzQueue: string[];
+	players: PlayerLite[];
+	onNextPlayer: () => void;
+}) {
+	const [hovered, setHovered] = useState(false);
+	const hasQueue = buzzQueue.length > 0;
+	const nameOf = (id: string) =>
+		players.find((p) => p.id === id)?.displayName ?? id;
+
+	return (
+		<div className="relative inline-block">
+			<Button
+				variant="outline"
+				disabled={!hasQueue}
+				onClick={onNextPlayer}
+				onMouseEnter={() => setHovered(true)}
+				onMouseLeave={() => setHovered(false)}
+			>
+				Next player
+			</Button>
+			{hovered && (
+				<div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 z-10 min-w-[10rem] rounded-lg border bg-popover px-3 py-2 text-xs shadow-lg pointer-events-none">
+					{hasQueue ? (
+						<ol className="space-y-1">
+							{buzzQueue.map((id, i) => (
+								<li key={id} className="flex items-center gap-2">
+									<span className="text-muted-foreground tabular-nums w-4">
+										{i + 1}.
+									</span>
+									<span className="font-medium">{nameOf(id)}</span>
+								</li>
+							))}
+						</ol>
+					) : (
+						<p className="text-muted-foreground">No one buzzed yet</p>
+					)}
+				</div>
+			)}
 		</div>
 	);
 }

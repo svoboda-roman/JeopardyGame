@@ -74,6 +74,8 @@ export interface GameState {
 	buzzOpensAtMs: number | null;
 	/** Player who has buzzed in successfully. */
 	currentPlayerId: string | null;
+	/** Players waiting to answer, in buzz-arrival order (no duplicates). */
+	buzzQueue: string[];
 	/** Players locked out of buzzing on the current question. */
 	lockedOutOnCurrent: Set<string>;
 	/**
@@ -154,6 +156,7 @@ export function newGame(args: {
 		currentQuestionRef: null,
 		buzzOpensAtMs: null,
 		currentPlayerId: null,
+		buzzQueue: [],
 		lockedOutOnCurrent: new Set(),
 		currentPickerId: null,
 		currentWager: null,
@@ -250,6 +253,7 @@ export function projectView(state: GameState): GameView {
 			? new Date(state.buzzOpensAtMs).toISOString()
 			: null,
 		currentPlayerId: state.currentPlayerId,
+		buzzQueue: [...state.buzzQueue],
 		currentPickerId: state.currentPickerId,
 		currentWager: state.currentWager,
 		finalJeopardy: projectFinal(state),
@@ -343,6 +347,7 @@ export type Intent =
 	| { type: "select_question"; actorId: string; questionRef: string }
 	| { type: "open_question"; actorId: string; nowMs: number }
 	| { type: "buzz"; actorId: string; nowMs: number }
+	| { type: "next_player"; actorId: string }
 	| {
 			type: "judge";
 			actorId: string;
@@ -468,6 +473,7 @@ export function transition(state: GameState, intent: Intent): TransitionResult {
 				...state,
 				currentQuestionRef: intent.questionRef,
 				currentPlayerId: null,
+				buzzQueue: [],
 				lockedOutOnCurrent: new Set(),
 				currentWager: null,
 			};
@@ -529,16 +535,46 @@ export function transition(state: GameState, intent: Intent): TransitionResult {
 					},
 				]);
 			}
-			if (state.phase !== "buzz_open")
+			if (state.phase !== "buzz_open" && state.phase !== "buzzed")
 				throw new GameError("invalid_state", "Not buzzing");
 			if (state.lockedOutOnCurrent.has(player.id))
 				throw new GameError("locked_out", "Locked out on this question");
+			// First buzz when window is open: claim the floor.
+			if (state.phase === "buzz_open") {
+				return ok({ ...state, phase: "buzzed", currentPlayerId: player.id }, [
+					{ type: "buzzed", playerId: player.id },
+				]);
+			}
+			// Phase is "buzzed": someone already has the floor — join the queue.
+			if (player.id === state.currentPlayerId) return ok(state); // already on floor
+			if (state.buzzQueue.includes(player.id)) return ok(state); // already queued
+			const newQueue = [...state.buzzQueue, player.id];
+			return ok({ ...state, buzzQueue: newQueue }, [
+				{ type: "buzz_queue_updated", queue: newQueue },
+			]);
+		}
+
+		case "next_player": {
+			requireHost(state, intent.actorId);
+			if (state.phase !== "buzzed")
+				throw new GameError("invalid_state", "No active buzz");
+			if (state.buzzQueue.length === 0)
+				throw new GameError("empty_queue", "No players in queue");
+			const [nextId, ...remaining] = state.buzzQueue;
+			const prevId = state.currentPlayerId;
+			const nextLocked = prevId
+				? new Set([...state.lockedOutOnCurrent, prevId])
+				: new Set(state.lockedOutOnCurrent);
 			const next: GameState = {
 				...state,
-				phase: "buzzed",
-				currentPlayerId: player.id,
+				currentPlayerId: nextId ?? null,
+				buzzQueue: remaining,
+				lockedOutOnCurrent: nextLocked,
 			};
-			return ok(next, [{ type: "buzzed", playerId: player.id }]);
+			return ok(next, [
+				{ type: "buzzed", playerId: nextId as string },
+				{ type: "buzz_queue_updated", queue: remaining },
+			]);
 		}
 
 		case "judge": {
@@ -617,6 +653,7 @@ export function transition(state: GameState, intent: Intent): TransitionResult {
 					currentQuestionRef: null,
 					currentPlayerId: null,
 					buzzOpensAtMs: null,
+					buzzQueue: [],
 					lockedOutOnCurrent: new Set(),
 					currentPickerId: allClosed ? null : nextPicker,
 					currentWager: null,
@@ -639,6 +676,7 @@ export function transition(state: GameState, intent: Intent): TransitionResult {
 				players: nextPlayers,
 				phase: "buzz_open",
 				currentPlayerId: null,
+				buzzQueue: [],
 				lockedOutOnCurrent: nextLockedOut,
 			};
 			broadcasts.push({ type: "buzz_open" });
@@ -661,6 +699,7 @@ export function transition(state: GameState, intent: Intent): TransitionResult {
 				currentQuestionRef: null,
 				currentPlayerId: null,
 				buzzOpensAtMs: null,
+				buzzQueue: [],
 				lockedOutOnCurrent: new Set(),
 				currentPickerId: allClosed ? null : state.currentPickerId,
 				currentWager: null,
