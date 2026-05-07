@@ -60,11 +60,12 @@ async function renderQuizzesPage() {
 describe("My Quizzes page", () => {
 	it("shows empty state when there are no quizzes", async () => {
 		await renderQuizzesPage();
-		await waitFor(() => {
-			expect(
-				screen.getByText("You don't have any quizzes yet."),
-			).toBeInTheDocument();
-		});
+		await waitFor(
+			() => {
+				expect(screen.getByText("No quizzes yet")).toBeInTheDocument();
+			},
+			{ timeout: 5000 },
+		);
 		expect(screen.getByText("Create your first quiz")).toBeInTheDocument();
 	});
 

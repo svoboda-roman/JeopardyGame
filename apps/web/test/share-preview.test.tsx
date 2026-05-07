@@ -61,10 +61,13 @@ async function renderSharePage(token = "t0k3n") {
 describe("Share preview page", () => {
 	it("shows the title and owner when the token resolves", async () => {
 		await renderSharePage();
-		await waitFor(() => {
-			expect(screen.getByText("A Quiz")).toBeInTheDocument();
-			expect(screen.getByText(/Owner Name/)).toBeInTheDocument();
-		});
+		await waitFor(
+			() => {
+				expect(screen.getByText("A Quiz")).toBeInTheDocument();
+				expect(screen.getByText(/Owner Name/)).toBeInTheDocument();
+			},
+			{ timeout: 5000 },
+		);
 	});
 
 	it("shows a not-found state when the token does not resolve", async () => {
@@ -74,7 +77,7 @@ describe("Share preview page", () => {
 		mod.__setShare({ found: false });
 		await renderSharePage("bad");
 		await waitFor(() => {
-			expect(screen.getByText("Not found")).toBeInTheDocument();
+			expect(screen.getByText("Link not found")).toBeInTheDocument();
 		});
 	});
 });

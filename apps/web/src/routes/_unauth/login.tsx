@@ -1,6 +1,7 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { Button } from "#/components/ui/button.tsx";
+import { FormField } from "#/components/ui/form-field.tsx";
 import { useAuth } from "#/stores/auth.ts";
 
 const apiUrl = import.meta.env.VITE_API_URL ?? "http://localhost:3000";
@@ -43,46 +44,42 @@ function LoginPage() {
 	}
 
 	return (
-		<form onSubmit={onSubmit} className="space-y-4">
-			<h1 className="text-2xl font-bold font-heading font-heading">Log in</h1>
-			<div className="space-y-2">
-				<label className="text-sm" htmlFor="email">
-					Email
-				</label>
-				<input
-					id="email"
-					type="email"
-					required
-					autoComplete="email"
-					className="w-full rounded-md border bg-input px-3 py-2 focus:outline-none focus:border-primary focus:ring-3 focus:ring-ring/40"
-					value={email}
-					onChange={(e) => setEmail(e.target.value)}
-				/>
+		<form onSubmit={onSubmit} className="space-y-5">
+			<div className="space-y-1.5 text-center">
+				<h1 className="text-2xl font-bold font-heading">Welcome back</h1>
+				<p className="text-sm text-muted-foreground">
+					Log in to host games and manage your quizzes.
+				</p>
 			</div>
-			<div className="space-y-2">
-				<label className="text-sm" htmlFor="password">
-					Password
-				</label>
-				<input
-					id="password"
-					type="password"
-					required
-					autoComplete="current-password"
-					className="w-full rounded-md border bg-input px-3 py-2 focus:outline-none focus:border-primary focus:ring-3 focus:ring-ring/40"
-					value={password}
-					onChange={(e) => setPassword(e.target.value)}
-				/>
-			</div>
+			<FormField
+				label="Email"
+				type="email"
+				required
+				autoComplete="email"
+				value={email}
+				onChange={(e) => setEmail(e.target.value)}
+			/>
+			<FormField
+				label="Password"
+				type="password"
+				required
+				autoComplete="current-password"
+				value={password}
+				onChange={(e) => setPassword(e.target.value)}
+			/>
 			{error && <p className="text-sm text-destructive">{error}</p>}
-			<Button type="submit" className="w-full" disabled={loading}>
+			<Button type="submit" className="w-full" size="lg" disabled={loading}>
 				{loading ? "Logging in…" : "Log in"}
 			</Button>
 			<div className="flex justify-between text-sm">
-				<Link to="/forgot" className="underline">
+				<Link
+					to="/forgot"
+					className="text-muted-foreground hover:text-foreground transition-colors"
+				>
 					Forgot password?
 				</Link>
-				<Link to="/register" className="underline">
-					Register
+				<Link to="/register" className="text-primary-bright hover:underline">
+					Create account
 				</Link>
 			</div>
 		</form>

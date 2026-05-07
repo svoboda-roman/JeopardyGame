@@ -1,6 +1,9 @@
+import { Mail01Icon } from "@hugeicons/core-free-icons";
+import { HugeiconsIcon } from "@hugeicons/react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState } from "react";
 import { Button } from "#/components/ui/button.tsx";
+import { FormField } from "#/components/ui/form-field.tsx";
 
 const apiUrl = import.meta.env.VITE_API_URL ?? "http://localhost:3000";
 
@@ -34,14 +37,20 @@ function ForgotPage() {
 
 	if (sent) {
 		return (
-			<div className="space-y-3">
-				<h1 className="text-2xl font-bold font-heading font-heading">
-					Check your email
-				</h1>
-				<p className="text-sm text-muted-foreground">
-					If an account exists for that address, we've sent a reset link.
-				</p>
-				<Link to="/login" className="text-sm underline">
+			<div className="space-y-4 text-center">
+				<div className="mx-auto grid place-items-center size-14 rounded-full bg-primary/10 text-primary-bright glow-primary">
+					<HugeiconsIcon icon={Mail01Icon} size={28} aria-hidden />
+				</div>
+				<div className="space-y-1.5">
+					<h1 className="text-2xl font-bold font-heading">Check your email</h1>
+					<p className="text-sm text-muted-foreground">
+						If an account exists for that address, we've sent a reset link.
+					</p>
+				</div>
+				<Link
+					to="/login"
+					className="inline-block text-sm text-primary-bright hover:underline"
+				>
 					Back to log in
 				</Link>
 			</div>
@@ -49,27 +58,28 @@ function ForgotPage() {
 	}
 
 	return (
-		<form onSubmit={onSubmit} className="space-y-4">
-			<h1 className="text-2xl font-bold font-heading font-heading">
-				Reset password
-			</h1>
-			<div className="space-y-2">
-				<label className="text-sm" htmlFor="email">
-					Email
-				</label>
-				<input
-					id="email"
-					type="email"
-					required
-					className="w-full rounded-md border bg-input px-3 py-2 focus:outline-none focus:border-primary focus:ring-3 focus:ring-ring/40"
-					value={email}
-					onChange={(e) => setEmail(e.target.value)}
-				/>
+		<form onSubmit={onSubmit} className="space-y-5">
+			<div className="space-y-1.5 text-center">
+				<h1 className="text-2xl font-bold font-heading">Reset password</h1>
+				<p className="text-sm text-muted-foreground">
+					We'll email you a secure link to set a new one.
+				</p>
 			</div>
-			<Button type="submit" className="w-full" disabled={loading}>
+			<FormField
+				label="Email"
+				type="email"
+				required
+				autoComplete="email"
+				value={email}
+				onChange={(e) => setEmail(e.target.value)}
+			/>
+			<Button type="submit" className="w-full" size="lg" disabled={loading}>
 				{loading ? "Sending…" : "Send reset link"}
 			</Button>
-			<Link to="/login" className="text-sm underline block text-center">
+			<Link
+				to="/login"
+				className="block text-sm text-center text-muted-foreground hover:text-foreground transition-colors"
+			>
 				Back to log in
 			</Link>
 		</form>

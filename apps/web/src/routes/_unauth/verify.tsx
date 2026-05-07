@@ -1,5 +1,8 @@
+import { Alert02Icon, CheckmarkCircle02Icon } from "@hugeicons/core-free-icons";
+import { HugeiconsIcon } from "@hugeicons/react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
+import { Button } from "#/components/ui/button.tsx";
 
 const apiUrl = import.meta.env.VITE_API_URL ?? "http://localhost:3000";
 
@@ -29,31 +32,56 @@ function VerifyPage() {
 		})();
 	}, [token]);
 
-	return (
-		<div className="space-y-3 text-center">
-			{status === "pending" && <p>Verifying your email…</p>}
-			{status === "ok" && (
-				<>
-					<h1 className="text-2xl font-bold font-heading font-heading">
-						Email verified
-					</h1>
-					<p className="text-sm">You can now host games.</p>
-					<Link to="/me" className="underline text-sm">
+	if (status === "pending") {
+		return (
+			<div className="space-y-4 text-center">
+				<div
+					className="mx-auto size-12 rounded-full border-2 border-primary/30 border-t-primary-bright animate-spin"
+					aria-hidden
+				/>
+				<p className="text-sm text-muted-foreground">Verifying your email…</p>
+			</div>
+		);
+	}
+
+	if (status === "ok") {
+		return (
+			<div className="space-y-4 text-center">
+				<div className="mx-auto grid place-items-center size-14 rounded-full bg-primary/10 text-primary-bright glow-primary">
+					<HugeiconsIcon icon={CheckmarkCircle02Icon} size={28} aria-hidden />
+				</div>
+				<div className="space-y-1.5">
+					<h1 className="text-2xl font-bold font-heading">Email verified</h1>
+					<p className="text-sm text-muted-foreground">
+						Your account is ready. You can now host live games.
+					</p>
+				</div>
+				<Link to="/me">
+					<Button size="lg" className="w-full">
 						Go to your profile
-					</Link>
-				</>
-			)}
-			{status === "error" && (
-				<>
-					<h1 className="text-2xl font-bold font-heading font-heading">
-						Verification failed
-					</h1>
-					<p className="text-sm">The link is invalid or has expired.</p>
-					<Link to="/login" className="underline text-sm">
-						Back to log in
-					</Link>
-				</>
-			)}
+					</Button>
+				</Link>
+			</div>
+		);
+	}
+
+	return (
+		<div className="space-y-4 text-center">
+			<div className="mx-auto grid place-items-center size-14 rounded-full bg-destructive/15 text-destructive">
+				<HugeiconsIcon icon={Alert02Icon} size={28} aria-hidden />
+			</div>
+			<div className="space-y-1.5">
+				<h1 className="text-2xl font-bold font-heading">Verification failed</h1>
+				<p className="text-sm text-muted-foreground">
+					The link is invalid or has expired.
+				</p>
+			</div>
+			<Link
+				to="/login"
+				className="inline-block text-sm text-primary-bright hover:underline"
+			>
+				Back to log in
+			</Link>
 		</div>
 	);
 }

@@ -1,6 +1,7 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { Button } from "#/components/ui/button.tsx";
+import { FormField } from "#/components/ui/form-field.tsx";
 import { useAuth } from "#/stores/auth.ts";
 
 const apiUrl = import.meta.env.VITE_API_URL ?? "http://localhost:3000";
@@ -44,61 +45,46 @@ function RegisterPage() {
 	}
 
 	return (
-		<form onSubmit={onSubmit} className="space-y-4">
-			<h1 className="text-2xl font-bold font-heading font-heading">
-				Create an account
-			</h1>
-			<div className="space-y-2">
-				<label className="text-sm" htmlFor="name">
-					Display name
-				</label>
-				<input
-					id="name"
-					required
-					minLength={1}
-					maxLength={32}
-					className="w-full rounded-md border bg-input px-3 py-2 focus:outline-none focus:border-primary focus:ring-3 focus:ring-ring/40"
-					value={name}
-					onChange={(e) => setName(e.target.value)}
-				/>
+		<form onSubmit={onSubmit} className="space-y-5">
+			<div className="space-y-1.5 text-center">
+				<h1 className="text-2xl font-bold font-heading">Create an account</h1>
+				<p className="text-sm text-muted-foreground">
+					Start authoring quizzes and hosting live games.
+				</p>
 			</div>
-			<div className="space-y-2">
-				<label className="text-sm" htmlFor="email">
-					Email
-				</label>
-				<input
-					id="email"
-					type="email"
-					required
-					autoComplete="email"
-					className="w-full rounded-md border bg-input px-3 py-2 focus:outline-none focus:border-primary focus:ring-3 focus:ring-ring/40"
-					value={email}
-					onChange={(e) => setEmail(e.target.value)}
-				/>
-			</div>
-			<div className="space-y-2">
-				<label className="text-sm" htmlFor="password">
-					Password
-				</label>
-				<input
-					id="password"
-					type="password"
-					required
-					minLength={8}
-					autoComplete="new-password"
-					className="w-full rounded-md border bg-input px-3 py-2 focus:outline-none focus:border-primary focus:ring-3 focus:ring-ring/40"
-					value={password}
-					onChange={(e) => setPassword(e.target.value)}
-				/>
-				<p className="text-xs text-muted-foreground">At least 12 characters.</p>
-			</div>
+			<FormField
+				label="Display name"
+				required
+				minLength={1}
+				maxLength={32}
+				value={name}
+				onChange={(e) => setName(e.target.value)}
+			/>
+			<FormField
+				label="Email"
+				type="email"
+				required
+				autoComplete="email"
+				value={email}
+				onChange={(e) => setEmail(e.target.value)}
+			/>
+			<FormField
+				label="Password"
+				type="password"
+				required
+				minLength={8}
+				autoComplete="new-password"
+				helper="At least 12 characters."
+				value={password}
+				onChange={(e) => setPassword(e.target.value)}
+			/>
 			{error && <p className="text-sm text-destructive">{error}</p>}
-			<Button type="submit" className="w-full" disabled={loading}>
+			<Button type="submit" className="w-full" size="lg" disabled={loading}>
 				{loading ? "Creating…" : "Create account"}
 			</Button>
-			<p className="text-sm text-center">
+			<p className="text-sm text-center text-muted-foreground">
 				Already have an account?{" "}
-				<Link to="/login" className="underline">
+				<Link to="/login" className="text-primary-bright hover:underline">
 					Log in
 				</Link>
 			</p>

@@ -1,6 +1,9 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
+import { BrandHeader } from "#/components/layout/brand-header.tsx";
 import { Button } from "#/components/ui/button.tsx";
+import { FormField } from "#/components/ui/form-field.tsx";
+import { Label } from "#/components/ui/label.tsx";
 
 const apiUrl = import.meta.env.VITE_API_URL ?? "http://localhost:3000";
 
@@ -19,8 +22,6 @@ function JoinPage() {
 	const [submitting, setSubmitting] = useState(false);
 	const codeInputRef = useRef<HTMLInputElement>(null);
 
-	// Manual focus on mount — equivalent UX to autoFocus but skipped
-	// for keyboard users mid-navigation, friendlier for screen readers.
 	useEffect(() => {
 		codeInputRef.current?.focus();
 	}, []);
@@ -63,61 +64,68 @@ function JoinPage() {
 	}
 
 	return (
-		<div className="min-h-[100dvh] flex items-center justify-center px-4">
-			<form
-				onSubmit={onSubmit}
-				className="w-full max-w-sm border rounded-2xl p-7 space-y-5 bg-card glow-primary"
+		<div className="relative min-h-[100dvh] flex flex-col overflow-hidden">
+			<div
+				aria-hidden
+				className="pointer-events-none absolute inset-0 grid grid-cols-6 gap-2 p-6 opacity-[0.04]"
 			>
-				<h1 className="text-2xl font-bold text-center font-heading">
-					Join a game
-				</h1>
-				<div className="space-y-2">
-					<label
-						className="text-xs font-semibold uppercase tracking-wider text-muted-foreground"
-						htmlFor="code"
-					>
-						Room code
-					</label>
-					<input
-						id="code"
-						ref={codeInputRef}
-						required
-						minLength={6}
-						maxLength={6}
-						value={code}
-						onChange={(e) => setCode(e.target.value.toUpperCase())}
-						inputMode="text"
-						className="w-full rounded-md border bg-input px-3 py-3 room-code text-xl text-center text-foreground focus:outline-none focus:border-primary focus:ring-3 focus:ring-ring/40"
-						autoCapitalize="characters"
-					/>
-				</div>
-				<div className="space-y-2">
-					<label
-						className="text-xs font-semibold uppercase tracking-wider text-muted-foreground"
-						htmlFor="name"
-					>
-						Display name
-					</label>
-					<input
+				{Array.from({ length: 30 }).map((_, i) => (
+					// biome-ignore lint/suspicious/noArrayIndexKey: decorative
+					<div key={i} className="rounded-md border border-foreground" />
+				))}
+			</div>
+			<BrandHeader />
+			<main className="relative flex-1 flex items-center justify-center px-4 pb-8">
+				<form
+					onSubmit={onSubmit}
+					className="w-full max-w-sm border rounded-2xl p-7 space-y-5 bg-card glow-primary"
+				>
+					<div className="space-y-1.5 text-center">
+						<h1 className="text-2xl font-bold font-heading">Join a game</h1>
+						<p className="text-sm text-muted-foreground">
+							Enter the room code your host shared.
+						</p>
+					</div>
+					<div className="space-y-1.5">
+						<Label
+							htmlFor="code"
+							className="text-xs font-semibold uppercase tracking-wider text-muted-foreground"
+						>
+							Room code
+						</Label>
+						<input
+							id="code"
+							ref={codeInputRef}
+							required
+							minLength={6}
+							maxLength={6}
+							value={code}
+							onChange={(e) => setCode(e.target.value.toUpperCase())}
+							inputMode="text"
+							className="w-full rounded-lg border border-border bg-input px-3 py-3 room-code text-xl text-center text-foreground focus-visible:outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/30"
+							autoCapitalize="characters"
+						/>
+					</div>
+					<FormField
 						id="name"
+						label="Display name"
 						required
 						minLength={1}
 						maxLength={32}
 						value={name}
 						onChange={(e) => setName(e.target.value)}
-						className="w-full rounded-md border bg-input px-3 py-2 focus:outline-none focus:border-primary focus:ring-3 focus:ring-ring/40"
 					/>
-				</div>
-				{error && <p className="text-sm text-destructive">{error}</p>}
-				<Button
-					type="submit"
-					className="w-full"
-					size="lg"
-					disabled={submitting || !code || !name}
-				>
-					{submitting ? "Joining…" : "Join game"}
-				</Button>
-			</form>
+					{error && <p className="text-sm text-destructive">{error}</p>}
+					<Button
+						type="submit"
+						className="w-full"
+						size="lg"
+						disabled={submitting || !code || !name}
+					>
+						{submitting ? "Joining…" : "Join game"}
+					</Button>
+				</form>
+			</main>
 		</div>
 	);
 }
