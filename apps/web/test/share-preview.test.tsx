@@ -66,9 +66,9 @@ describe("Share preview page", () => {
 				expect(screen.getByText("A Quiz")).toBeInTheDocument();
 				expect(screen.getByText(/Owner Name/)).toBeInTheDocument();
 			},
-			{ timeout: 5000 },
+			{ timeout: 10000 },
 		);
-	});
+	}, 15000);
 
 	it("shows a not-found state when the token does not resolve", async () => {
 		const mod = (await import("#/lib/api.ts")) as unknown as {

@@ -1,23 +1,29 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
+import { AppHeader } from "#/components/layout/app-header.tsx";
 import { BrandHeader } from "#/components/layout/brand-header.tsx";
 import { Button } from "#/components/ui/button.tsx";
 import { FormField } from "#/components/ui/form-field.tsx";
 import { Label } from "#/components/ui/label.tsx";
+import { ensureAuthLoaded, useAuth } from "#/stores/auth.ts";
 
 const apiUrl = import.meta.env.VITE_API_URL ?? "http://localhost:3000";
 
 export const Route = createFileRoute("/join")({
 	validateSearch: (s: Record<string, unknown>): { code?: string } =>
 		typeof s.code === "string" ? { code: s.code } : {},
+	beforeLoad: async () => {
+		await ensureAuthLoaded();
+	},
 	component: JoinPage,
 });
 
 function JoinPage() {
 	const { code: initialCode } = Route.useSearch();
 	const navigate = useNavigate();
+	const user = useAuth((s) => s.user);
 	const [code, setCode] = useState(initialCode ?? "");
-	const [name, setName] = useState("");
+	const [name, setName] = useState(user?.name ?? "");
 	const [error, setError] = useState<string | null>(null);
 	const [submitting, setSubmitting] = useState(false);
 	const codeInputRef = useRef<HTMLInputElement>(null);
@@ -65,16 +71,18 @@ function JoinPage() {
 
 	return (
 		<div className="relative min-h-[100dvh] flex flex-col overflow-hidden">
-			<div
-				aria-hidden
-				className="pointer-events-none absolute inset-0 grid grid-cols-6 gap-2 p-6 opacity-[0.04]"
-			>
-				{Array.from({ length: 30 }).map((_, i) => (
-					// biome-ignore lint/suspicious/noArrayIndexKey: decorative
-					<div key={i} className="rounded-md border border-foreground" />
-				))}
-			</div>
-			<BrandHeader />
+			{!user && (
+				<div
+					aria-hidden
+					className="pointer-events-none absolute inset-0 grid grid-cols-6 gap-2 p-6 opacity-[0.04]"
+				>
+					{Array.from({ length: 30 }).map((_, i) => (
+						// biome-ignore lint/suspicious/noArrayIndexKey: decorative
+						<div key={i} className="rounded-md border border-foreground" />
+					))}
+				</div>
+			)}
+			{user ? <AppHeader /> : <BrandHeader />}
 			<main className="relative flex-1 flex items-center justify-center px-4 pb-8">
 				<form
 					onSubmit={onSubmit}

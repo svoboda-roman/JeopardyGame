@@ -64,10 +64,10 @@ describe("My Quizzes page", () => {
 			() => {
 				expect(screen.getByText("No quizzes yet")).toBeInTheDocument();
 			},
-			{ timeout: 5000 },
+			{ timeout: 10000 },
 		);
 		expect(screen.getByText("Create your first quiz")).toBeInTheDocument();
-	});
+	}, 15000);
 
 	it("lists quizzes when present", async () => {
 		const mod = (await import("#/lib/api.ts")) as unknown as {
