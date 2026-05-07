@@ -104,7 +104,14 @@ function PlayPage() {
 	const lockedOut =
 		lockedOnQuestion !== null && game.currentQuestion?.ref === lockedOnQuestion;
 
-	const canBuzz = game.phase === "buzz_open" && !isDDOther && !lockedOut;
+	const inQueue = (game.buzzQueue ?? []).includes(selfId ?? "");
+	const isAnswering = game.currentPlayerId === selfId;
+	const canBuzz =
+		(game.phase === "buzz_open" || game.phase === "buzzed") &&
+		!isDDOther &&
+		!lockedOut &&
+		!inQueue &&
+		!isAnswering;
 
 	const activeCategory = game.currentQuestion
 		? (game.board.find((c) => c.ref === game.currentQuestion?.categoryRef)
@@ -121,6 +128,7 @@ function PlayPage() {
 				buzzedName={buzzedPlayer?.displayName ?? null}
 				ddOther={isDDOther}
 				lockedOut={lockedOut}
+				inQueue={inQueue}
 			/>
 
 			<PlayersStrip
@@ -194,6 +202,7 @@ function PlayPage() {
 				<BuzzControl
 					canBuzz={canBuzz}
 					lockedOut={lockedOut}
+					inQueue={inQueue}
 					onBuzz={() => send({ type: "buzz" })}
 				/>
 			)}
@@ -254,12 +263,14 @@ function StatusBanner({
 	buzzedName,
 	ddOther,
 	lockedOut,
+	inQueue,
 }: {
 	phase: GameView["phase"];
 	isPicker: boolean;
 	buzzedName: string | null;
 	ddOther: boolean;
 	lockedOut: boolean;
+	inQueue: boolean;
 }) {
 	const { label, tone } = bannerContent({
 		phase,
@@ -267,6 +278,7 @@ function StatusBanner({
 		buzzedName,
 		ddOther,
 		lockedOut,
+		inQueue,
 	});
 
 	const toneClasses =
@@ -293,12 +305,14 @@ function bannerContent({
 	buzzedName,
 	ddOther,
 	lockedOut,
+	inQueue,
 }: {
 	phase: GameView["phase"];
 	isPicker: boolean;
 	buzzedName: string | null;
 	ddOther: boolean;
 	lockedOut: boolean;
+	inQueue: boolean;
 }): { label: string; tone: "primary" | "gold" | "danger" | "muted" } {
 	if (phase === "lobby")
 		return { label: "Waiting for the host to start", tone: "muted" };
@@ -315,10 +329,12 @@ function bannerContent({
 			? { label: "Locked out", tone: "danger" }
 			: { label: "Buzz now!", tone: "primary" };
 	if (phase === "buzzed")
-		return {
-			label: buzzedName ? `${buzzedName} buzzed in` : "Buzzed in",
-			tone: "primary",
-		};
+		return inQueue
+			? { label: "You're in the queue", tone: "primary" }
+			: {
+					label: buzzedName ? `${buzzedName} buzzed in` : "Buzzed in",
+					tone: "muted",
+				};
 	if (phase === "dd_wagering")
 		return ddOther
 			? { label: "Daily Double — picker only", tone: "gold" }
@@ -468,12 +484,15 @@ function ClueCard({
 function BuzzControl({
 	canBuzz,
 	lockedOut,
+	inQueue,
 	onBuzz,
 }: {
 	canBuzz: boolean;
 	lockedOut: boolean;
+	inQueue: boolean;
 	onBuzz: () => void;
 }) {
+	const label = lockedOut ? "LOCKED" : inQueue ? "QUEUED" : "BUZZ";
 	return (
 		<button
 			type="button"
@@ -484,7 +503,7 @@ function BuzzControl({
 				canBuzz ? "buzz-pulse" : ""
 			}`}
 		>
-			{lockedOut ? "LOCKED" : "BUZZ"}
+			{label}
 		</button>
 	);
 }
