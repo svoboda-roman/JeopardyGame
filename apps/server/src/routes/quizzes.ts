@@ -252,6 +252,7 @@ export const quizzes = new Elysia({ tags: ["quizzes"] })
 						finalEnabled: t.Optional(t.Boolean()),
 						readDelayMs: t.Optional(t.Integer({ minimum: 0, maximum: 10000 })),
 						allowReopen: t.Optional(t.Boolean()),
+						ddCount: t.Optional(t.Integer({ minimum: 0, maximum: 30 })),
 					}),
 				),
 			}),
