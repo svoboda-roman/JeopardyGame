@@ -180,7 +180,6 @@ function EditorPage() {
 							onChange={(s) => setSettings(s)}
 							onFlush={flushSettings}
 						/>
-						<ShareButton quizId={quizId} />
 						<Button
 							variant="destructive"
 							onClick={() => {
@@ -999,31 +998,5 @@ function HostButton({
 			</Button>
 			{error && <span className="text-xs text-destructive">{error}</span>}
 		</>
-	);
-}
-
-function ShareButton({ quizId }: { quizId: string }) {
-	const [token, setToken] = useState<string | null>(null);
-	const [busy, setBusy] = useState(false);
-
-	async function onClick() {
-		setBusy(true);
-		try {
-			const res = await api.quizzes({ id: quizId }).share.post();
-			if (res.error || !res.data) return;
-			const { share } = res.data as { share: { token: string } };
-			setToken(share.token);
-			await navigator.clipboard.writeText(
-				`${window.location.origin}/share/${share.token}`,
-			);
-		} finally {
-			setBusy(false);
-		}
-	}
-
-	return (
-		<Button variant="outline" onClick={onClick} disabled={busy}>
-			{token ? "Link copied" : busy ? "Sharing…" : "Share link"}
-		</Button>
 	);
 }
