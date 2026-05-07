@@ -1087,6 +1087,7 @@ function LobbySettingsButton({
 		readDelayMs: game.readDelayMs,
 		ddCount: game.ddCount,
 	});
+	const [ddDraft, setDdDraft] = useState(String(game.ddCount));
 
 	const close = useCallback(() => {
 		send({ type: "update_settings", ...local });
@@ -1111,6 +1112,7 @@ function LobbySettingsButton({
 				readDelayMs: game.readDelayMs,
 				ddCount: game.ddCount,
 			});
+			setDdDraft(String(game.ddCount));
 		}
 	}, [
 		game.manualPoints,
@@ -1255,12 +1257,18 @@ function LobbySettingsButton({
 											min={0}
 											max={30}
 											step={1}
-											value={local.ddCount}
+											value={ddDraft}
 											onChange={(e) => {
+												setDdDraft(e.target.value);
 												const n = Number(e.target.value);
 												setLocal({
 													...local,
-													ddCount: Number.isFinite(n) && n >= 0 ? n : 0,
+													ddCount:
+														e.target.value === ""
+															? 0
+															: Number.isFinite(n) && n >= 0
+																? n
+																: local.ddCount,
 												});
 											}}
 											className="w-full rounded-md border bg-input px-3 py-2 focus:outline-none focus:border-primary focus:ring-3 focus:ring-ring/40"

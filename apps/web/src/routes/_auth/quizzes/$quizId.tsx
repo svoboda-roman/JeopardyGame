@@ -966,6 +966,11 @@ function SettingsButton({
 	const delayId = useId();
 	const reopenId = useId();
 	const ddCountId = useId();
+	const [ddDraft, setDdDraft] = useState(String(settings.ddCount));
+
+	useEffect(() => {
+		setDdDraft(String(settings.ddCount));
+	}, [settings.ddCount]);
 
 	const close = useCallback(() => {
 		onFlush();
@@ -1123,12 +1128,18 @@ function SettingsButton({
 											min={0}
 											max={30}
 											step={1}
-											value={settings.ddCount}
+											value={ddDraft}
 											onChange={(e) => {
+												setDdDraft(e.target.value);
 												const n = Number(e.target.value);
 												onChange({
 													...settings,
-													ddCount: Number.isFinite(n) && n >= 0 ? n : 0,
+													ddCount:
+														e.target.value === ""
+															? 0
+															: Number.isFinite(n) && n >= 0
+																? n
+																: settings.ddCount,
 												});
 											}}
 											className="w-full rounded-md border bg-input px-3 py-2 focus:outline-none focus:border-primary focus:ring-3 focus:ring-ring/40"
