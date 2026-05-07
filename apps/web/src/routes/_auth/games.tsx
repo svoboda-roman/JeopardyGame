@@ -21,6 +21,7 @@ interface HistoryEntry {
 	startedAt: string | Date | null;
 	endedAt: string | Date | null;
 	quizId: string | null;
+	quizTitle: string | null;
 	winner: { displayName: string; score: number } | null;
 }
 
@@ -72,9 +73,14 @@ function HistoryPage() {
 									className="flex items-center justify-between gap-3 px-4 py-3.5 hover:bg-muted/40 transition-colors"
 								>
 									<div className="min-w-0">
-										<p className="room-code text-sm wordmark-accent">
-											{g.roomCode}
-										</p>
+										<div className="flex items-center gap-2 min-w-0">
+											<p className="font-medium truncate">
+												{g.quizTitle ?? "Untitled quiz"}
+											</p>
+											<span className="room-code text-[11px] text-muted-foreground/80 font-normal tracking-[0.2em] shrink-0">
+												{g.roomCode}
+											</span>
+										</div>
 										<p className="text-xs text-muted-foreground mt-0.5">
 											{g.role === "host" ? "Hosted" : "Played"} ·{" "}
 											{new Date(when).toLocaleString()}
