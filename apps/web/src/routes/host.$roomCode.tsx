@@ -268,7 +268,7 @@ function HostPage() {
 						hostNotes={game.currentQuestion.hostNotes ?? null}
 						currentWager={game.currentWager}
 						buzzedName={buzzed?.displayName ?? null}
-						buzzQueue={game.buzzQueue}
+						buzzQueue={game.buzzQueue ?? []}
 						players={game.players}
 						phase={game.phase}
 						onJudge={(verdict) => send({ type: "judge", verdict })}

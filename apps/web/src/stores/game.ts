@@ -50,7 +50,7 @@ export const createGameStore = () =>
 			switch (msg.type) {
 				case "snapshot":
 					set({
-						game: msg.game,
+						game: { ...msg.game, buzzQueue: msg.game.buzzQueue ?? [] },
 						selfPlayerId: msg.you.playerId,
 						ddPending: null,
 						fjEligible: msg.game.finalJeopardy
