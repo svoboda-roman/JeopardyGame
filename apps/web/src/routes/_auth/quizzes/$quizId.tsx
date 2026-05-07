@@ -71,6 +71,7 @@ function parseSettings(raw: Record<string, unknown>): GameSettings {
 			typeof raw.finalEnabled === "boolean" ? raw.finalEnabled : true,
 		readDelayMs: typeof raw.readDelayMs === "number" ? raw.readDelayMs : 3000,
 		allowReopen: typeof raw.allowReopen === "boolean" ? raw.allowReopen : false,
+		ddCount: typeof raw.ddCount === "number" ? raw.ddCount : 0,
 	};
 }
 
@@ -918,6 +919,7 @@ interface GameSettings {
 	finalEnabled: boolean;
 	readDelayMs: number;
 	allowReopen: boolean;
+	ddCount: number;
 }
 
 function GameSettingsContext({
@@ -963,6 +965,7 @@ function SettingsButton({
 	const finalId = useId();
 	const delayId = useId();
 	const reopenId = useId();
+	const ddCountId = useId();
 
 	const close = useCallback(() => {
 		onFlush();
@@ -1104,6 +1107,36 @@ function SettingsButton({
 										/>
 										<p className="text-xs text-muted-foreground">
 											Time before buzzers open after the host opens a question.
+										</p>
+									</div>
+
+									<div className="space-y-1">
+										<label
+											htmlFor={ddCountId}
+											className="text-xs font-semibold uppercase tracking-wider text-muted-foreground"
+										>
+											Random Daily Doubles
+										</label>
+										<input
+											id={ddCountId}
+											type="number"
+											min={0}
+											max={30}
+											step={1}
+											value={settings.ddCount}
+											onChange={(e) => {
+												const n = Number(e.target.value);
+												onChange({
+													...settings,
+													ddCount: Number.isFinite(n) && n >= 0 ? n : 0,
+												});
+											}}
+											className="w-full rounded-md border bg-input px-3 py-2 focus:outline-none focus:border-primary focus:ring-3 focus:ring-ring/40"
+										/>
+										<p className="text-xs text-muted-foreground">
+											Mark this many extra questions as Daily Doubles at game
+											start, picked at random. Added on top of any DDs you've
+											authored.
 										</p>
 									</div>
 
