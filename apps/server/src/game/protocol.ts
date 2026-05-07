@@ -87,6 +87,7 @@ export interface GameView {
 	allowReopen: boolean;
 	readDelayMs: number;
 	finalEnabled: boolean;
+	ddCount: number;
 	players: PlayerView[];
 	board: BoardCategoryView[];
 	currentQuestion: QuestionView | null;
@@ -131,6 +132,7 @@ export type ClientToServer =
 			allowReopen?: boolean;
 			readDelayMs?: number;
 			finalEnabled?: boolean;
+			ddCount?: number;
 	  }
 	| { type: "leave" }
 	| { type: "ping" };
@@ -199,7 +201,11 @@ export type ServerToClient =
 			type: "settings_updated";
 			settings: Pick<
 				GameView,
-				"manualPoints" | "allowReopen" | "readDelayMs" | "finalEnabled"
+				| "manualPoints"
+				| "allowReopen"
+				| "readDelayMs"
+				| "finalEnabled"
+				| "ddCount"
 			>;
 	  }
 	| { type: "pong" }

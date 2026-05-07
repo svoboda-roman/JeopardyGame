@@ -1,10 +1,4 @@
 import { describe, expect, it } from "bun:test";
-import { eq } from "drizzle-orm";
-import { db } from "../src/db/client.ts";
-import {
-	gameSnapshot as gameSnapshotTable,
-	game as gameTable,
-} from "../src/db/schema.ts";
 import { call, signUpAndGetCookie } from "./helpers.ts";
 
 async function freshHost() {
@@ -63,34 +57,6 @@ describe("POST /games", () => {
 			game: { roomCode: string; status: string };
 		};
 		expect(detail.game.status).toBe("lobby");
-	});
-
-	it("adds the requested number of random extra Daily Doubles", async () => {
-		const host = await freshHost();
-		const quiz = await createQuiz(host, "DD Quiz");
-		const res = await call("/games", {
-			method: "POST",
-			headers: { "Content-Type": "application/json", cookie: host },
-			body: JSON.stringify({ quizId: quiz.id, options: { ddCount: 4 } }),
-		});
-		expect(res.status).toBe(201);
-		const body = (await res.json()) as { game: { id: string } };
-		const snap = (
-			await db
-				.select({ quiz: gameSnapshotTable.quiz })
-				.from(gameSnapshotTable)
-				.innerJoin(gameTable, eq(gameTable.id, gameSnapshotTable.gameId))
-				.where(eq(gameTable.id, body.game.id))
-				.limit(1)
-		)[0];
-		const stored = snap?.quiz as {
-			board: { questions: Record<string, { isDailyDouble: boolean }> };
-		};
-		const dds = Object.values(stored.board.questions).filter(
-			(q) => q.isDailyDouble,
-		);
-		// Fresh quizzes author 0 DDs, so ddCount=4 should give exactly 4.
-		expect(dds.length).toBe(4);
 	});
 
 	it("auto-aborts the prior in-flight game when the host starts a new one", async () => {

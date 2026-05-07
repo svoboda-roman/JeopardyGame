@@ -89,6 +89,54 @@ describe("lobby + start", () => {
 			),
 		).toBe(true);
 	});
+
+	it("sprinkles ddCount random Daily Doubles at start_game", () => {
+		// Build a 6×5 board so there's room for several DDs.
+		const cats = Array.from({ length: 6 }, (_, c) => ({
+			ref: `c${c}`,
+			position: c,
+			title: `Cat ${c}`,
+			questionRefs: Array.from({ length: 5 }, (_, q) => `c${c}q${q}`),
+		}));
+		const questions: Record<string, InternalBoard["questions"][string]> = {};
+		for (const c of cats) {
+			for (let q = 0; q < 5; q++) {
+				const ref = `${c.ref}q${q}`;
+				questions[ref] = {
+					ref,
+					categoryRef: c.ref,
+					position: q,
+					pointValue: (q + 1) * 100,
+					isDailyDouble: false,
+					clue: "",
+					answer: "",
+					media: [],
+					answerMedia: [],
+					youtubeId: null,
+					answerYoutubeId: null,
+					hostNotes: null,
+					buzzWindowMs: null,
+				};
+			}
+		}
+		let s = newGame({
+			roomCode: "DDDDDD",
+			hostId: "u-host",
+			hostPlayer: { id: "p-host", displayName: "Host" },
+			board: { categories: cats, questions },
+			options: { ddCount: 4 },
+		});
+		s = addPlayer(s, { id: "p1", displayName: "P1" }).state;
+		const before = Object.values(s.board.questions).filter(
+			(q) => q.isDailyDouble,
+		).length;
+		expect(before).toBe(0);
+		const r = transition(s, { type: "start_game", actorId: "p-host" });
+		const after = Object.values(r.state.board.questions).filter(
+			(q) => q.isDailyDouble,
+		).length;
+		expect(after).toBe(4);
+	});
 });
 
 describe("one-question buzz cycle", () => {
