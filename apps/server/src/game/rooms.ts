@@ -109,6 +109,23 @@ export class RoomDriver {
 		this.broadcast(r.broadcasts);
 		this.scheduleTick();
 		this.maybePersistCompletion();
+		if (r.broadcasts.some((b) => b.type === "settings_updated")) {
+			this.persistOptions().catch((err: unknown) => {
+				console.error(`[room ${this.roomCode}] persistOptions failed`, err);
+			});
+		}
+	}
+
+	/** Mirror in-memory options onto the game row so they survive reload. */
+	persistOptions(): Promise<void> {
+		const options = { ...this.state.options };
+		const gameId = this.gameId;
+		return (async () => {
+			await db
+				.update(gameTable)
+				.set({ options })
+				.where(eq(gameTable.id, gameId));
+		})();
 	}
 
 	/** Called externally when wall-clock advances, in case our timer was missed. */

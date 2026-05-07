@@ -140,6 +140,27 @@ describe("RoomDriver.persistCompletion", () => {
 		expect(rows.length).toBe(1);
 	});
 
+	it("persistOptions writes the live options object onto the game row", async () => {
+		const { gameId, roomCode } = await setupGame();
+		const state = newGame({
+			roomCode,
+			hostId: "u-host",
+			hostPlayer: { id: "p-host", displayName: "Host" },
+			board: { categories: [], questions: {} },
+			options: { ddCount: 7, readDelayMs: 1234 },
+		});
+		const driver = new RoomDriver(roomCode, state, gameId);
+		await driver.persistOptions();
+
+		const [g] = await db
+			.select()
+			.from(gameTable)
+			.where(eq(gameTable.id, gameId));
+		const opts = g?.options as { ddCount: number; readDelayMs: number };
+		expect(opts.ddCount).toBe(7);
+		expect(opts.readDelayMs).toBe(1234);
+	});
+
 	it("does nothing when the state is not completed", async () => {
 		const { gameId, roomCode } = await setupGame();
 		const state = newGame({
