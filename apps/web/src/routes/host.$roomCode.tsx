@@ -77,6 +77,7 @@ function HostPage() {
 	const fjAvailable =
 		game.phase === "picking" &&
 		allClosed &&
+		game.finalEnabled &&
 		game.finalJeopardy !== null &&
 		nonHost.some((p) => p.score > 0);
 
