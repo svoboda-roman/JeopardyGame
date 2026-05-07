@@ -49,7 +49,7 @@ function Home() {
 				</div>
 			)}
 
-			<h1 className="wordmark relative text-6xl sm:text-7xl md:text-8xl">
+			<h1 className="wordmark relative text-5xl sm:text-7xl md:text-8xl">
 				Jeopardy<span className="wordmark-accent">Game</span>
 			</h1>
 
