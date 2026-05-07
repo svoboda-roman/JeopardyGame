@@ -967,10 +967,7 @@ function SettingsButton({
 	const reopenId = useId();
 	const ddCountId = useId();
 	const [ddDraft, setDdDraft] = useState(String(settings.ddCount));
-
-	useEffect(() => {
-		setDdDraft(String(settings.ddCount));
-	}, [settings.ddCount]);
+	const [delayDraft, setDelayDraft] = useState(String(settings.readDelayMs));
 
 	const close = useCallback(() => {
 		onFlush();
@@ -1097,17 +1094,18 @@ function SettingsButton({
 										</label>
 										<input
 											id={delayId}
-											type="number"
-											min={0}
-											max={10000}
-											step={500}
-											value={settings.readDelayMs}
-											onChange={(e) =>
+											type="text"
+											inputMode="numeric"
+											value={delayDraft}
+											onChange={(e) => {
+												const raw = e.target.value.replace(/[^0-9]/g, "");
+												setDelayDraft(raw);
+												const n = raw === "" ? 0 : Number(raw);
 												onChange({
 													...settings,
-													readDelayMs: Number(e.target.value),
-												})
-											}
+													readDelayMs: Math.min(10000, Math.max(0, n)),
+												});
+											}}
 											className="w-full rounded-md border bg-input px-3 py-2 focus:outline-none focus:border-primary focus:ring-3 focus:ring-ring/40"
 										/>
 										<p className="text-xs text-muted-foreground">
@@ -1124,22 +1122,16 @@ function SettingsButton({
 										</label>
 										<input
 											id={ddCountId}
-											type="number"
-											min={0}
-											max={30}
-											step={1}
+											type="text"
+											inputMode="numeric"
 											value={ddDraft}
 											onChange={(e) => {
-												setDdDraft(e.target.value);
-												const n = Number(e.target.value);
+												const raw = e.target.value.replace(/[^0-9]/g, "");
+												setDdDraft(raw);
+												const n = raw === "" ? 0 : Number(raw);
 												onChange({
 													...settings,
-													ddCount:
-														e.target.value === ""
-															? 0
-															: Number.isFinite(n) && n >= 0
-																? n
-																: settings.ddCount,
+													ddCount: Math.min(30, Math.max(0, n)),
 												});
 											}}
 											className="w-full rounded-md border bg-input px-3 py-2 focus:outline-none focus:border-primary focus:ring-3 focus:ring-ring/40"
