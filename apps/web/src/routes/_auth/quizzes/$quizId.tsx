@@ -49,11 +49,18 @@ interface Question {
 	hostNotes: string | null;
 	buzzWindowMs: number | null;
 }
+interface FinalQuestion {
+	id: string;
+	quizId: string;
+	category: string;
+	clue: string;
+	answer: string;
+}
 interface QuizDetail {
 	quiz: Quiz;
 	categories: Category[];
 	questions: Question[];
-	finalQuestion: unknown | null;
+	finalQuestion: FinalQuestion | null;
 }
 
 function parseSettings(raw: Record<string, unknown>): GameSettings {
@@ -177,6 +184,7 @@ function EditorPage() {
 						<GameSettingsContext
 							quizId={quizId}
 							settings={settings}
+							finalQuestion={data.finalQuestion}
 							onChange={(s) => setSettings(s)}
 							onFlush={flushSettings}
 						/>
@@ -199,6 +207,13 @@ function EditorPage() {
 				quizId={quizId}
 				manualPoints={settings.manualPoints}
 			/>
+
+			{settings.finalEnabled && (
+				<FinalQuestionSection
+					quizId={quizId}
+					finalQuestion={data.finalQuestion}
+				/>
+			)}
 		</PageShell>
 	);
 }
@@ -751,6 +766,153 @@ function QuestionEditor({
 	);
 }
 
+function FinalQuestionSection({
+	quizId,
+	finalQuestion,
+}: {
+	quizId: string;
+	finalQuestion: FinalQuestion | null;
+}) {
+	const qc = useQueryClient();
+	const categoryId = useId();
+	const clueId = useId();
+	const answerId = useId();
+
+	const [category, setCategory] = useState(finalQuestion?.category ?? "");
+	const [clue, setClue] = useState(finalQuestion?.clue ?? "");
+	const [answer, setAnswer] = useState(finalQuestion?.answer ?? "");
+	const [savedAt, setSavedAt] = useState<number | null>(null);
+
+	// Reset local state when the server snapshot changes (e.g. after a delete).
+	const lastSeenIdRef = useRef<string | null>(finalQuestion?.id ?? null);
+	useEffect(() => {
+		const incomingId = finalQuestion?.id ?? null;
+		if (incomingId !== lastSeenIdRef.current) {
+			lastSeenIdRef.current = incomingId;
+			setCategory(finalQuestion?.category ?? "");
+			setClue(finalQuestion?.clue ?? "");
+			setAnswer(finalQuestion?.answer ?? "");
+		}
+	}, [finalQuestion]);
+
+	// Debounced save: only when all three fields have content and something changed.
+	useEffect(() => {
+		const cat = category.trim();
+		const cl = clue.trim();
+		const an = answer.trim();
+		if (!cat || !cl || !an) return;
+		const changed =
+			cat !== (finalQuestion?.category ?? "") ||
+			cl !== (finalQuestion?.clue ?? "") ||
+			an !== (finalQuestion?.answer ?? "");
+		if (!changed) return;
+		const handle = setTimeout(async () => {
+			await api
+				.quizzes({ id: quizId })
+				.final.put({ category: cat, clue: cl, answer: an });
+			await qc.invalidateQueries({ queryKey: ["quiz", quizId] });
+			setSavedAt(Date.now());
+		}, 500);
+		return () => clearTimeout(handle);
+	}, [category, clue, answer, finalQuestion, qc, quizId]);
+
+	async function remove() {
+		if (!finalQuestion) return;
+		const ok = window.confirm("Remove the Final Jeopardy question?");
+		if (!ok) return;
+		await api.quizzes({ id: quizId }).final.delete();
+		await qc.invalidateQueries({ queryKey: ["quiz", quizId] });
+	}
+
+	const incomplete = !category.trim() || !clue.trim() || !answer.trim();
+	const status = finalQuestion
+		? incomplete
+			? "Fill all three fields to save."
+			: savedAt
+				? "Saved"
+				: "Changes save automatically"
+		: incomplete
+			? "Fill all three fields to enable Final Jeopardy."
+			: "Saving…";
+
+	return (
+		<section className="mt-8 space-y-3">
+			<div className="flex items-end justify-between gap-3">
+				<div>
+					<h2 className="font-heading font-bold text-lg">Final Jeopardy</h2>
+					<p className="text-xs text-muted-foreground">
+						One bonus question played after the board is cleared. Required if
+						the Final Jeopardy setting is on.
+					</p>
+				</div>
+				{finalQuestion && (
+					<Button variant="outline" size="sm" onClick={remove}>
+						Remove
+					</Button>
+				)}
+			</div>
+
+			<div className="rounded-2xl border bg-card p-4 space-y-3">
+				<div className="space-y-1">
+					<label
+						htmlFor={categoryId}
+						className="text-xs font-semibold uppercase tracking-wider text-muted-foreground"
+					>
+						Category
+					</label>
+					<input
+						id={categoryId}
+						type="text"
+						maxLength={40}
+						value={category}
+						onChange={(e) => setCategory(e.target.value)}
+						placeholder="e.g. World Capitals"
+						className="w-full rounded-md border bg-input px-3 py-2 focus:outline-none focus:border-primary focus:ring-3 focus:ring-ring/40"
+					/>
+				</div>
+
+				<div className="space-y-1">
+					<label
+						htmlFor={clueId}
+						className="text-xs font-semibold uppercase tracking-wider text-muted-foreground"
+					>
+						Clue
+					</label>
+					<textarea
+						id={clueId}
+						maxLength={500}
+						rows={3}
+						value={clue}
+						onChange={(e) => setClue(e.target.value)}
+						placeholder="The clue revealed once everyone has wagered."
+						className="w-full rounded-md border bg-input px-3 py-2 focus:outline-none focus:border-primary focus:ring-3 focus:ring-ring/40"
+					/>
+				</div>
+
+				<div className="space-y-1">
+					<label
+						htmlFor={answerId}
+						className="text-xs font-semibold uppercase tracking-wider text-muted-foreground"
+					>
+						Answer
+					</label>
+					<input
+						id={answerId}
+						type="text"
+						maxLength={200}
+						value={answer}
+						onChange={(e) => setAnswer(e.target.value)}
+						placeholder="The correct response."
+						className="w-full rounded-md border bg-input px-3 py-2 focus:outline-none focus:border-primary focus:ring-3 focus:ring-ring/40"
+					/>
+				</div>
+
+				<p className="text-xs text-muted-foreground">{status}</p>
+			</div>
+		</section>
+	);
+}
+
 interface GameSettings {
 	manualPoints: boolean;
 	finalEnabled: boolean;
@@ -761,17 +923,23 @@ interface GameSettings {
 function GameSettingsContext({
 	quizId,
 	settings,
+	finalQuestion,
 	onChange,
 	onFlush,
 }: {
 	quizId: string;
 	settings: GameSettings;
+	finalQuestion: FinalQuestion | null;
 	onChange: (s: GameSettings) => void;
 	onFlush: () => void;
 }) {
 	return (
 		<>
-			<HostButton quizId={quizId} settings={settings} />
+			<HostButton
+				quizId={quizId}
+				settings={settings}
+				finalQuestion={finalQuestion}
+			/>
 			<SettingsButton
 				settings={settings}
 				onChange={onChange}
@@ -955,15 +1123,24 @@ function SettingsButton({
 function HostButton({
 	quizId,
 	settings,
+	finalQuestion,
 }: {
 	quizId: string;
 	settings: GameSettings;
+	finalQuestion: FinalQuestion | null;
 }) {
 	const navigate = useNavigate();
 	const [busy, setBusy] = useState(false);
 	const [error, setError] = useState<string | null>(null);
 
+	const finalIncomplete =
+		settings.finalEnabled &&
+		(!finalQuestion?.category.trim() ||
+			!finalQuestion.clue.trim() ||
+			!finalQuestion.answer.trim());
+
 	async function host() {
+		if (finalIncomplete) return;
 		setBusy(true);
 		setError(null);
 		try {
@@ -993,9 +1170,22 @@ function HostButton({
 
 	return (
 		<>
-			<Button onClick={host} disabled={busy}>
+			<Button
+				onClick={host}
+				disabled={busy || finalIncomplete}
+				title={
+					finalIncomplete
+						? "Fill in the Final Jeopardy question or turn the setting off."
+						: undefined
+				}
+			>
 				{busy ? "Starting…" : "Host game"}
 			</Button>
+			{finalIncomplete && (
+				<span className="text-xs text-muted-foreground">
+					Final Jeopardy is on but incomplete.
+				</span>
+			)}
 			{error && <span className="text-xs text-destructive">{error}</span>}
 		</>
 	);
