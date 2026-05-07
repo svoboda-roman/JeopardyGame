@@ -318,11 +318,13 @@ export const games = new Elysia({ tags: ["games"] })
 				startedAt: gameTable.startedAt,
 				endedAt: gameTable.endedAt,
 				quizId: gameTable.quizId,
+				quizTitle: quizTable.title,
 				ranking: gameResultTable.ranking,
 			})
 			.from(gameTable)
 			.leftJoin(gamePlayerTable, eq(gamePlayerTable.gameId, gameTable.id))
 			.leftJoin(gameResultTable, eq(gameResultTable.gameId, gameTable.id))
+			.leftJoin(quizTable, eq(quizTable.id, gameTable.quizId))
 			.where(
 				and(
 					eq(gameTable.status, "completed"),
@@ -343,6 +345,7 @@ export const games = new Elysia({ tags: ["games"] })
 					startedAt: g.startedAt,
 					endedAt: g.endedAt,
 					quizId: g.quizId,
+					quizTitle: g.quizTitle,
 					winner: winner
 						? { displayName: winner.displayName, score: winner.score }
 						: null,
