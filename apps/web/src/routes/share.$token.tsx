@@ -1,11 +1,26 @@
+import { Alert02Icon, BookOpen02Icon } from "@hugeicons/core-free-icons";
+import { HugeiconsIcon } from "@hugeicons/react";
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { BrandHeader } from "#/components/layout/brand-header.tsx";
 import { Button } from "#/components/ui/button.tsx";
+import { EmptyState } from "#/components/ui/empty-state.tsx";
 import { api } from "#/lib/api.ts";
 
 export const Route = createFileRoute("/share/$token")({
 	component: SharePreview,
 });
+
+function PageFrame({ children }: { children: React.ReactNode }) {
+	return (
+		<div className="min-h-[100dvh] flex flex-col">
+			<BrandHeader />
+			<main className="flex-1 flex items-center justify-center px-4 pb-10">
+				{children}
+			</main>
+		</div>
+	);
+}
 
 function SharePreview() {
 	const { token } = Route.useParams();
@@ -22,62 +37,82 @@ function SharePreview() {
 			};
 		},
 		retry: false,
-		// Poll while the page is open so a recipient can wait on the share
-		// link and get the join CTA the moment the host opens a lobby.
 		refetchInterval: 5000,
 	});
 
+	if (isLoading) {
+		return (
+			<PageFrame>
+				<p className="text-sm text-muted-foreground">Loading…</p>
+			</PageFrame>
+		);
+	}
+
+	if (error || !data) {
+		return (
+			<PageFrame>
+				<div className="w-full max-w-md">
+					<EmptyState
+						icon={Alert02Icon}
+						title="Link not found"
+						description="This share link is invalid or has been revoked."
+						action={
+							<Link to="/">
+								<Button>Go home</Button>
+							</Link>
+						}
+					/>
+				</div>
+			</PageFrame>
+		);
+	}
+
 	return (
-		<div className="min-h-screen flex items-center justify-center px-4">
-			<div className="w-full max-w-md border rounded-2xl p-6 text-center space-y-3">
-				{isLoading && <p className="text-sm text-muted-foreground">Loading…</p>}
-				{error && (
-					<>
-						<h1 className="text-2xl font-bold">Not found</h1>
-						<p className="text-sm text-muted-foreground">
-							This share link is invalid or has been revoked.
+		<PageFrame>
+			<div className="w-full max-w-md border border-border rounded-2xl p-7 bg-card glow-primary text-center space-y-4">
+				<div className="mx-auto grid place-items-center size-12 rounded-full bg-primary/10 text-primary-bright">
+					<HugeiconsIcon icon={BookOpen02Icon} size={22} aria-hidden />
+				</div>
+				<div className="space-y-1">
+					<p className="text-xs uppercase tracking-wider text-muted-foreground">
+						Quiz
+					</p>
+					<h1 className="text-2xl font-bold font-heading">{data.quizTitle}</h1>
+					<p className="text-sm text-muted-foreground">
+						by {data.ownerDisplayName}
+					</p>
+				</div>
+				{data.activeRoomCode ? (
+					<div className="pt-3 space-y-2 border-t border-border/70">
+						<p className="text-xs uppercase tracking-wider text-muted-foreground pt-3">
+							Room code
 						</p>
-						<Link to="/" className="underline text-sm">
-							Go home
-						</Link>
-					</>
-				)}
-				{data && (
-					<>
-						<p className="text-sm uppercase tracking-wider text-muted-foreground">
-							Quiz
+						<p className="room-code text-2xl wordmark-accent">
+							{data.activeRoomCode}
 						</p>
-						<h1 className="text-2xl font-bold">{data.quizTitle}</h1>
-						<p className="text-sm text-muted-foreground">
-							by {data.ownerDisplayName}
-						</p>
-						{data.activeRoomCode ? (
-							<div className="pt-4 space-y-2">
-								<p className="text-xs uppercase tracking-wider text-muted-foreground">
-									Room code
-								</p>
-								<p className="room-code text-2xl">{data.activeRoomCode}</p>
-								<Button
-									size="lg"
-									className="w-full"
-									onClick={() =>
-										navigate({
-											to: "/join",
-											search: { code: data.activeRoomCode ?? "" },
-										})
-									}
-								>
-									Join game
-								</Button>
-							</div>
-						) : (
-							<p className="text-xs text-muted-foreground pt-4">
-								Waiting for the host to open a lobby…
-							</p>
-						)}
-					</>
+						<Button
+							size="lg"
+							className="w-full"
+							onClick={() =>
+								navigate({
+									to: "/join",
+									search: { code: data.activeRoomCode ?? "" },
+								})
+							}
+						>
+							Join game
+						</Button>
+					</div>
+				) : (
+					<div className="pt-3 border-t border-border/70 flex items-center justify-center gap-2 text-xs text-muted-foreground">
+						<span
+							className="size-1.5 rounded-full bg-primary-bright animate-pulse"
+							aria-hidden
+						/>
+						Waiting for the host to open a lobby…
+					</div>
 				)}
 			</div>
-		</div>
+		</PageFrame>
 	);
 }

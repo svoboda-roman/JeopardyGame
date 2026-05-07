@@ -1,4 +1,5 @@
 import { createFileRoute, Outlet, redirect } from "@tanstack/react-router";
+import { UnauthShell } from "#/components/layout/unauth-shell.tsx";
 import { ensureAuthLoaded } from "#/stores/auth.ts";
 
 export const Route = createFileRoute("/_unauth")({
@@ -11,10 +12,8 @@ export const Route = createFileRoute("/_unauth")({
 
 function UnauthLayout() {
 	return (
-		<div className="min-h-[100dvh] flex items-center justify-center px-4">
-			<div className="w-full max-w-sm border rounded-2xl p-7 bg-card glow-primary">
-				<Outlet />
-			</div>
-		</div>
+		<UnauthShell>
+			<Outlet />
+		</UnauthShell>
 	);
 }

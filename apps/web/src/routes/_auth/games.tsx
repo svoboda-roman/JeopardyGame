@@ -1,5 +1,10 @@
+import { GameController03Icon } from "@hugeicons/core-free-icons";
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
+import { PageHeader } from "#/components/layout/page-header.tsx";
+import { PageShell } from "#/components/layout/page-shell.tsx";
+import { Button } from "#/components/ui/button.tsx";
+import { EmptyState } from "#/components/ui/empty-state.tsx";
 import { api } from "#/lib/api.ts";
 
 export const Route = createFileRoute("/_auth/games")({
@@ -29,13 +34,11 @@ function HistoryPage() {
 	});
 
 	return (
-		<div className="max-w-3xl mx-auto space-y-6">
-			<header className="flex items-center justify-between">
-				<h1 className="text-3xl font-heading font-bold">Game history</h1>
-				<Link to="/me" className="text-sm underline">
-					← Profile
-				</Link>
-			</header>
+		<PageShell>
+			<PageHeader
+				title="Games"
+				description="Recent rooms you've hosted or joined."
+			/>
 
 			{isLoading && <p className="text-sm text-muted-foreground">Loading…</p>}
 			{error && (
@@ -43,34 +46,39 @@ function HistoryPage() {
 			)}
 
 			{data && data.games.length === 0 && (
-				<div className="border rounded-2xl p-8 text-center bg-card">
-					<p className="text-muted-foreground">
-						You haven't hosted or played in any games yet.
-					</p>
-				</div>
+				<EmptyState
+					icon={GameController03Icon}
+					title="No games yet"
+					description="Once you host or join a room, it'll show up here."
+					action={
+						<Link to="/quizzes">
+							<Button size="lg">Go to quizzes</Button>
+						</Link>
+					}
+				/>
 			)}
 
 			{data && data.games.length > 0 && (
-				<ul className="divide-y rounded-2xl border bg-card">
+				<ul className="divide-y divide-border/70 rounded-2xl border border-border bg-card/60 overflow-hidden">
 					{data.games.map((g) => {
 						const when = g.endedAt ?? g.startedAt ?? g.createdAt;
 						const completed = g.status === "completed";
 						const inner = (
-							<div className="flex items-center justify-between px-4 py-3">
-								<div>
+							<div className="flex items-center justify-between px-4 py-3.5">
+								<div className="min-w-0">
 									<p className="room-code text-sm wordmark-accent">
 										{g.roomCode}
 									</p>
-									<p className="text-xs text-muted-foreground">
+									<p className="text-xs text-muted-foreground mt-0.5">
 										{g.role === "host" ? "Hosted" : "Played"} ·{" "}
 										{new Date(when).toLocaleString()}
 									</p>
 								</div>
 								<span
-									className={`text-xs uppercase tracking-wider ${
+									className={`text-[10px] uppercase tracking-wider rounded-full px-2 py-1 border ${
 										completed
-											? "text-[color:var(--gold)]"
-											: "text-muted-foreground"
+											? "text-[color:var(--gold)] border-[color:var(--gold)]/40 bg-[color:var(--gold-dim)]"
+											: "text-muted-foreground border-border bg-muted/30"
 									}`}
 								>
 									{g.status}
@@ -83,7 +91,7 @@ function HistoryPage() {
 									<Link
 										to="/games/$roomCode/result"
 										params={{ roomCode: g.roomCode }}
-										className="block hover:bg-muted/40"
+										className="block hover:bg-muted/40 transition-colors"
 									>
 										{inner}
 									</Link>
@@ -95,6 +103,6 @@ function HistoryPage() {
 					})}
 				</ul>
 			)}
-		</div>
+		</PageShell>
 	);
 }

@@ -6,9 +6,11 @@ import {
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { PageHeader } from "#/components/layout/page-header.tsx";
+import { PageShell } from "#/components/layout/page-shell.tsx";
 import { MediaPicker, type PickedMedia } from "#/components/MediaPicker.tsx";
 import { Button } from "#/components/ui/button.tsx";
 import { api } from "#/lib/api.ts";
@@ -162,32 +164,34 @@ function EditorPage() {
 		return <p className="p-4 text-sm text-destructive">Quiz not found.</p>;
 
 	return (
-		<div className="max-w-6xl mx-auto space-y-6">
-			<header className="flex flex-wrap items-center gap-2 justify-between">
-				<Link to="/quizzes" className="text-sm underline">
-					← All quizzes
-				</Link>
-				<div className="flex gap-2">
-					<GameSettingsContext
-						quizId={quizId}
-						settings={settings}
-						onChange={(s) => setSettings(s)}
-						onFlush={flushSettings}
-					/>
-					<ShareButton quizId={quizId} />
-					<Button
-						variant="destructive"
-						onClick={() => {
-							if (confirm("Delete this quiz? This cannot be undone."))
-								deleteMut.mutate();
-						}}
-					>
-						Delete
-					</Button>
-				</div>
-			</header>
-
-			<TitleField quiz={data.quiz} />
+		<PageShell width="wide">
+			<PageHeader
+				title={data.quiz.title || "Untitled quiz"}
+				description="Edit categories, questions, and game settings. Changes save automatically."
+				crumbs={[
+					{ label: "Quizzes", to: "/quizzes" },
+					{ label: data.quiz.title || "Untitled" },
+				]}
+				actions={
+					<>
+						<GameSettingsContext
+							quizId={quizId}
+							settings={settings}
+							onChange={(s) => setSettings(s)}
+							onFlush={flushSettings}
+						/>
+						<Button
+							variant="destructive"
+							onClick={() => {
+								if (confirm("Delete this quiz? This cannot be undone."))
+									deleteMut.mutate();
+							}}
+						>
+							Delete
+						</Button>
+					</>
+				}
+			/>
 
 			<Board
 				categories={data.categories}
@@ -195,31 +199,7 @@ function EditorPage() {
 				quizId={quizId}
 				manualPoints={settings.manualPoints}
 			/>
-		</div>
-	);
-}
-
-function TitleField({ quiz }: { quiz: Quiz }) {
-	const qc = useQueryClient();
-	const [value, setValue] = useState(quiz.title);
-	const lastSent = useRef(quiz.title);
-
-	async function save() {
-		if (value === lastSent.current || value.trim().length === 0) return;
-		lastSent.current = value;
-		await api.quizzes({ id: quiz.id }).patch({ title: value });
-		await qc.invalidateQueries({ queryKey: ["quizzes"] });
-	}
-
-	return (
-		<input
-			aria-label="Quiz title"
-			value={value}
-			onChange={(e) => setValue(e.target.value)}
-			onBlur={save}
-			className="w-full text-3xl font-bold bg-transparent border-b py-2 focus:outline-none focus:border-primary"
-			maxLength={80}
-		/>
+		</PageShell>
 	);
 }
 
@@ -1018,31 +998,5 @@ function HostButton({
 			</Button>
 			{error && <span className="text-xs text-destructive">{error}</span>}
 		</>
-	);
-}
-
-function ShareButton({ quizId }: { quizId: string }) {
-	const [token, setToken] = useState<string | null>(null);
-	const [busy, setBusy] = useState(false);
-
-	async function onClick() {
-		setBusy(true);
-		try {
-			const res = await api.quizzes({ id: quizId }).share.post();
-			if (res.error || !res.data) return;
-			const { share } = res.data as { share: { token: string } };
-			setToken(share.token);
-			await navigator.clipboard.writeText(
-				`${window.location.origin}/share/${share.token}`,
-			);
-		} finally {
-			setBusy(false);
-		}
-	}
-
-	return (
-		<Button variant="outline" onClick={onClick} disabled={busy}>
-			{token ? "Link copied" : busy ? "Sharing…" : "Share link"}
-		</Button>
 	);
 }

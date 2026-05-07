@@ -1,6 +1,7 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { Button } from "#/components/ui/button.tsx";
+import { FormField } from "#/components/ui/form-field.tsx";
 
 const apiUrl = import.meta.env.VITE_API_URL ?? "http://localhost:3000";
 
@@ -42,30 +43,35 @@ function ResetPage() {
 	}
 
 	return (
-		<form onSubmit={onSubmit} className="space-y-4">
-			<h1 className="text-2xl font-bold font-heading font-heading">
-				Set a new password
-			</h1>
-			<div className="space-y-2">
-				<label className="text-sm" htmlFor="password">
-					New password
-				</label>
-				<input
-					id="password"
-					type="password"
-					required
-					minLength={8}
-					autoComplete="new-password"
-					className="w-full rounded-md border bg-input px-3 py-2 focus:outline-none focus:border-primary focus:ring-3 focus:ring-ring/40"
-					value={password}
-					onChange={(e) => setPassword(e.target.value)}
-				/>
+		<form onSubmit={onSubmit} className="space-y-5">
+			<div className="space-y-1.5 text-center">
+				<h1 className="text-2xl font-bold font-heading">Set a new password</h1>
+				<p className="text-sm text-muted-foreground">
+					Pick something you'll remember — at least 12 characters.
+				</p>
 			</div>
-			{error && <p className="text-sm text-destructive">{error}</p>}
-			<Button type="submit" className="w-full" disabled={loading || !token}>
+			<FormField
+				label="New password"
+				type="password"
+				required
+				minLength={8}
+				autoComplete="new-password"
+				value={password}
+				onChange={(e) => setPassword(e.target.value)}
+				error={error}
+			/>
+			<Button
+				type="submit"
+				className="w-full"
+				size="lg"
+				disabled={loading || !token}
+			>
 				{loading ? "Updating…" : "Update password"}
 			</Button>
-			<Link to="/login" className="text-sm underline block text-center">
+			<Link
+				to="/login"
+				className="block text-sm text-center text-muted-foreground hover:text-foreground transition-colors"
+			>
 				Back to log in
 			</Link>
 		</form>

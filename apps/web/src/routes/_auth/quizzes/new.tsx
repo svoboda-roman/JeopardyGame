@@ -1,7 +1,10 @@
 import { useQueryClient } from "@tanstack/react-query";
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
+import { PageHeader } from "#/components/layout/page-header.tsx";
+import { PageShell } from "#/components/layout/page-shell.tsx";
 import { Button } from "#/components/ui/button.tsx";
+import { FormField } from "#/components/ui/form-field.tsx";
 import { api } from "#/lib/api.ts";
 
 export const Route = createFileRoute("/_auth/quizzes/new")({
@@ -34,28 +37,37 @@ function NewQuizPage() {
 	}
 
 	return (
-		<div className="max-w-md mx-auto space-y-4">
-			<h1 className="text-3xl font-bold">New quiz</h1>
-			<form onSubmit={onSubmit} className="space-y-3">
-				<div className="space-y-1">
-					<label htmlFor="title" className="text-sm">
-						Title
-					</label>
-					<input
-						id="title"
-						required
-						minLength={1}
-						maxLength={80}
-						value={title}
-						onChange={(e) => setTitle(e.target.value)}
-						className="w-full rounded-md border bg-background px-3 py-2"
-					/>
+		<PageShell width="narrow">
+			<PageHeader
+				title="New quiz"
+				description="Give it a title — you'll add categories and questions next."
+				crumbs={[{ label: "Quizzes", to: "/quizzes" }, { label: "New" }]}
+			/>
+			<form
+				onSubmit={onSubmit}
+				className="rounded-2xl border border-border bg-card/60 p-5 sm:p-6 space-y-5"
+			>
+				<FormField
+					label="Title"
+					required
+					minLength={1}
+					maxLength={80}
+					value={title}
+					onChange={(e) => setTitle(e.target.value)}
+					helper="You can change this later."
+					error={error}
+				/>
+				<div className="flex gap-2 justify-end">
+					<Link to="/quizzes">
+						<Button variant="outline" type="button">
+							Cancel
+						</Button>
+					</Link>
+					<Button type="submit" disabled={submitting || !title.trim()}>
+						{submitting ? "Creating…" : "Create quiz"}
+					</Button>
 				</div>
-				{error && <p className="text-sm text-destructive">{error}</p>}
-				<Button type="submit" disabled={submitting || !title.trim()}>
-					{submitting ? "Creating…" : "Create quiz"}
-				</Button>
 			</form>
-		</div>
+		</PageShell>
 	);
 }

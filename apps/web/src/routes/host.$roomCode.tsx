@@ -1,4 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
+import QRCode from "qrcode";
 import {
 	useCallback,
 	useEffect,
@@ -948,20 +949,119 @@ function CompletedView({
 }
 
 function LobbyShareButton({ roomCode }: { roomCode: string }) {
+	const [open, setOpen] = useState(false);
 	const [copied, setCopied] = useState(false);
+	const [qrDataUrl, setQrDataUrl] = useState<string | null>(null);
 
-	function share() {
-		const url = `${window.location.origin}/join?code=${roomCode}`;
+	const url =
+		typeof window !== "undefined"
+			? `${window.location.origin}/join?code=${roomCode}`
+			: `/join?code=${roomCode}`;
+
+	useEffect(() => {
+		if (!open) return;
+		let cancelled = false;
+		void QRCode.toDataURL(url, {
+			margin: 1,
+			width: 320,
+			color: { dark: "#0a0613ff", light: "#f6f3ffff" },
+		}).then((d) => {
+			if (!cancelled) setQrDataUrl(d);
+		});
+		return () => {
+			cancelled = true;
+		};
+	}, [open, url]);
+
+	function copyLink() {
 		void navigator.clipboard.writeText(url).then(() => {
 			setCopied(true);
 			setTimeout(() => setCopied(false), 2000);
 		});
 	}
 
+	function close() {
+		setOpen(false);
+		setCopied(false);
+	}
+
 	return (
-		<Button variant="outline" onClick={share}>
-			{copied ? "Copied!" : "Share link"}
-		</Button>
+		<>
+			<Button variant="outline" onClick={() => setOpen(true)}>
+				Share lobby
+			</Button>
+			{open &&
+				createPortal(
+					<>
+						<button
+							type="button"
+							aria-label="Close dialog"
+							className="fixed inset-0 z-20 bg-background/90 backdrop-blur"
+							onClick={close}
+						/>
+						<div
+							role="dialog"
+							aria-modal="true"
+							aria-label="Share lobby"
+							className="fixed inset-0 z-20 overflow-y-auto pointer-events-none"
+						>
+							<div className="flex min-h-full items-center justify-center p-4">
+								<div className="relative bg-card border rounded-2xl p-6 w-full max-w-sm space-y-5 glow-primary pointer-events-auto text-center">
+									<div className="space-y-1">
+										<h2 className="font-heading font-bold text-lg">
+											Share lobby
+										</h2>
+										<p className="text-xs uppercase tracking-wider text-muted-foreground">
+											Room code
+										</p>
+										<p className="room-code text-2xl wordmark-accent">
+											{roomCode}
+										</p>
+									</div>
+
+									<div className="mx-auto rounded-xl bg-[oklch(0.96_0.005_290)] p-3 w-fit">
+										{qrDataUrl ? (
+											<img
+												src={qrDataUrl}
+												alt={`QR code for joining room ${roomCode}`}
+												width={240}
+												height={240}
+												className="block size-60"
+											/>
+										) : (
+											<div className="size-60 grid place-items-center text-xs text-muted-foreground">
+												Generating…
+											</div>
+										)}
+									</div>
+
+									<div className="space-y-2">
+										<p className="text-xs uppercase tracking-wider text-muted-foreground">
+											Join link
+										</p>
+										<p className="text-sm break-all rounded-lg border border-border bg-input px-3 py-2 text-foreground/90">
+											{url}
+										</p>
+										<div className="flex gap-2">
+											<Button
+												variant="outline"
+												className="flex-1"
+												onClick={copyLink}
+											>
+												{copied ? "Copied!" : "Copy link"}
+											</Button>
+											<Button variant="ghost" onClick={close}>
+												Close
+											</Button>
+										</div>
+									</div>
+								</div>
+							</div>
+						</div>
+					</>,
+					document.body,
+				)}
+		</>
 	);
 }
 
