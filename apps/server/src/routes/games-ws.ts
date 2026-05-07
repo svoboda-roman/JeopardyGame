@@ -121,6 +121,7 @@ function intentFor(playerId: string, msg: ClientToServer): Intent | null {
 				allowReopen: msg.allowReopen,
 				readDelayMs: msg.readDelayMs,
 				finalEnabled: msg.finalEnabled,
+				ddCount: msg.ddCount,
 			};
 		case "wager":
 			return { type: "wager", actorId: playerId, amount: msg.amount };

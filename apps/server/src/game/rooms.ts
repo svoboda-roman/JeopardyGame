@@ -303,6 +303,7 @@ export async function getOrLoadRoom(
 					finalEnabled?: boolean;
 					manualPoints?: boolean;
 					allowReopen?: boolean;
+					ddCount?: number;
 				}) ?? {},
 		});
 

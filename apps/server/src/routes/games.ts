@@ -180,26 +180,6 @@ export const games = new Elysia({ tags: ["games"] })
 			const allowReopen = body.options?.allowReopen ?? false;
 			const ddCount = body.options?.ddCount ?? 0;
 
-			// Apply random extra Daily Doubles on top of any authored ones.
-			// Picked once at game-creation time so each game is different.
-			if (ddCount > 0) {
-				const candidates = Object.values(snapshot.board.questions).filter(
-					(q) => !q.isDailyDouble,
-				);
-				for (let i = candidates.length - 1; i > 0; i--) {
-					const j = Math.floor(Math.random() * (i + 1));
-					const a = candidates[i];
-					const b = candidates[j];
-					if (a && b) {
-						candidates[i] = b;
-						candidates[j] = a;
-					}
-				}
-				for (const q of candidates.slice(0, ddCount)) {
-					q.isDailyDouble = true;
-				}
-			}
-
 			// Read host display name once (profile preferred, fallback to user.name).
 			const profileRow = (
 				await db
@@ -248,6 +228,7 @@ export const games = new Elysia({ tags: ["games"] })
 										finalEnabled,
 										manualPoints,
 										allowReopen,
+										ddCount,
 									},
 								})
 								.returning();

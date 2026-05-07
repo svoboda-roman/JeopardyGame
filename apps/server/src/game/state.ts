@@ -18,6 +18,12 @@ export interface GameOptions {
 	finalEnabled: boolean;
 	manualPoints: boolean;
 	allowReopen: boolean;
+	/**
+	 * Number of additional Daily Doubles to sprinkle randomly across the
+	 * board. Picked when `start_game` fires so each game is different.
+	 * 0 means "use only the DDs the quiz authored".
+	 */
+	ddCount: number;
 }
 
 export interface InternalFinalQuestion {
@@ -140,6 +146,7 @@ export function newGame(args: {
 			finalEnabled: args.options?.finalEnabled ?? false,
 			manualPoints: args.options?.manualPoints ?? false,
 			allowReopen: args.options?.allowReopen ?? false,
+			ddCount: args.options?.ddCount ?? 0,
 		},
 		phase: "lobby",
 		players: {
@@ -212,6 +219,7 @@ export function projectView(state: GameState): GameView {
 		allowReopen: state.options.allowReopen,
 		readDelayMs: state.options.readDelayMs,
 		finalEnabled: state.options.finalEnabled,
+		ddCount: state.options.ddCount,
 		players: Object.values(state.players)
 			.sort((a, b) =>
 				a.isHost === b.isHost
@@ -363,6 +371,7 @@ export type Intent =
 			allowReopen?: boolean;
 			readDelayMs?: number;
 			finalEnabled?: boolean;
+			ddCount?: number;
 	  }
 	| { type: "wager"; actorId: string; amount: number }
 	| { type: "start_final"; actorId: string }
@@ -401,8 +410,41 @@ export function transition(state: GameState, intent: Intent): TransitionResult {
 			const firstPicker = nonHostPlayers[pickIdx] ?? nonHostPlayers[0];
 			if (!firstPicker)
 				throw new GameError("not_enough_players", "Need ≥ 1 non-host player");
+
+			// Sprinkle the requested number of random extra Daily Doubles
+			// across the board. Done here (not at game-creation) so each
+			// game is different and the host can adjust the count in lobby.
+			let board = state.board;
+			if (state.options.ddCount > 0) {
+				const candidates = Object.values(board.questions).filter(
+					(q) => !q.isDailyDouble,
+				);
+				for (let i = candidates.length - 1; i > 0; i--) {
+					const j = Math.floor(Math.random() * (i + 1));
+					const a = candidates[i];
+					const b = candidates[j];
+					if (a && b) {
+						candidates[i] = b;
+						candidates[j] = a;
+					}
+				}
+				const chosen = new Set(
+					candidates.slice(0, state.options.ddCount).map((q) => q.ref),
+				);
+				if (chosen.size > 0) {
+					const nextQuestions: Record<string, InternalQuestion> = {};
+					for (const [ref, q] of Object.entries(board.questions)) {
+						nextQuestions[ref] = chosen.has(ref)
+							? { ...q, isDailyDouble: true }
+							: q;
+					}
+					board = { ...board, questions: nextQuestions };
+				}
+			}
+
 			const next: GameState = {
 				...state,
+				board,
 				phase: "picking",
 				currentPickerId: firstPicker.id,
 			};
@@ -819,6 +861,7 @@ export function transition(state: GameState, intent: Intent): TransitionResult {
 				...(intent.finalEnabled !== undefined
 					? { finalEnabled: intent.finalEnabled }
 					: {}),
+				...(intent.ddCount !== undefined ? { ddCount: intent.ddCount } : {}),
 			};
 			const next: GameState = { ...state, options: updatedOptions };
 			const settings = {
@@ -826,6 +869,7 @@ export function transition(state: GameState, intent: Intent): TransitionResult {
 				allowReopen: updatedOptions.allowReopen,
 				readDelayMs: updatedOptions.readDelayMs,
 				finalEnabled: updatedOptions.finalEnabled,
+				ddCount: updatedOptions.ddCount,
 			};
 			return ok(next, [{ type: "settings_updated", settings }]);
 		}

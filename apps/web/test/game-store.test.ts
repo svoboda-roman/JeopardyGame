@@ -44,6 +44,7 @@ function baseGame(): GameView {
 		allowReopen: false,
 		readDelayMs: 3000,
 		finalEnabled: true,
+		ddCount: 0,
 		finalJeopardy: null,
 	};
 }

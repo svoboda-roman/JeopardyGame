@@ -1078,12 +1078,14 @@ function LobbySettingsButton({
 	const finalId = useId();
 	const reopenId = useId();
 	const delayId = useId();
+	const ddCountId = useId();
 
 	const [local, setLocal] = useState({
 		manualPoints: game.manualPoints,
 		finalEnabled: game.finalEnabled,
 		allowReopen: game.allowReopen,
 		readDelayMs: game.readDelayMs,
+		ddCount: game.ddCount,
 	});
 
 	const close = useCallback(() => {
@@ -1107,6 +1109,7 @@ function LobbySettingsButton({
 				finalEnabled: game.finalEnabled,
 				allowReopen: game.allowReopen,
 				readDelayMs: game.readDelayMs,
+				ddCount: game.ddCount,
 			});
 		}
 	}, [
@@ -1114,6 +1117,7 @@ function LobbySettingsButton({
 		game.finalEnabled,
 		game.allowReopen,
 		game.readDelayMs,
+		game.ddCount,
 		open,
 	]);
 
@@ -1235,6 +1239,35 @@ function LobbySettingsButton({
 										/>
 										<p className="text-xs text-muted-foreground">
 											Time before buzzers open after the host opens a question.
+										</p>
+									</div>
+
+									<div className="space-y-1">
+										<label
+											htmlFor={ddCountId}
+											className="text-xs font-semibold uppercase tracking-wider text-muted-foreground"
+										>
+											Random Daily Doubles
+										</label>
+										<input
+											id={ddCountId}
+											type="number"
+											min={0}
+											max={30}
+											step={1}
+											value={local.ddCount}
+											onChange={(e) => {
+												const n = Number(e.target.value);
+												setLocal({
+													...local,
+													ddCount: Number.isFinite(n) && n >= 0 ? n : 0,
+												});
+											}}
+											className="w-full rounded-md border bg-input px-3 py-2 focus:outline-none focus:border-primary focus:ring-3 focus:ring-ring/40"
+										/>
+										<p className="text-xs text-muted-foreground">
+											Extra Daily Doubles picked at random when the game starts.
+											Added on top of any DDs the quiz authored.
 										</p>
 									</div>
 
