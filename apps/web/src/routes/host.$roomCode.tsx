@@ -39,6 +39,8 @@ function HostPage() {
 	const ddPending = useStore(store, (s) => s.ddPending);
 	const fjEligible = useStore(store, (s) => s.fjEligible);
 
+	useBuzzSound(game?.phase ?? null);
+
 	if (status === "ended") {
 		return (
 			<div className="min-h-screen flex flex-col items-center justify-center gap-3 p-4 text-center">
@@ -1287,4 +1289,46 @@ function LobbySettingsButton({
 				)}
 		</>
 	);
+}
+
+/**
+ * Plays a short buzzer beep on the host machine each time the game
+ * transitions into the `buzzed` phase (i.e. someone won the race).
+ * Synthesised via Web Audio so we don't ship an audio asset.
+ */
+function useBuzzSound(phase: string | null) {
+	const prevPhaseRef = useRef<string | null>(null);
+	const ctxRef = useRef<AudioContext | null>(null);
+
+	useEffect(() => {
+		const prev = prevPhaseRef.current;
+		prevPhaseRef.current = phase;
+		if (phase !== "buzzed" || prev === "buzzed") return;
+
+		try {
+			const Ctor =
+				window.AudioContext ??
+				(window as unknown as { webkitAudioContext?: typeof AudioContext })
+					.webkitAudioContext;
+			if (!Ctor) return;
+			const ctx = ctxRef.current ?? new Ctor();
+			ctxRef.current = ctx;
+			if (ctx.state === "suspended") void ctx.resume();
+
+			const now = ctx.currentTime;
+			const osc = ctx.createOscillator();
+			const gain = ctx.createGain();
+			osc.type = "square";
+			osc.frequency.setValueAtTime(880, now);
+			osc.frequency.exponentialRampToValueAtTime(440, now + 0.18);
+			gain.gain.setValueAtTime(0.0001, now);
+			gain.gain.exponentialRampToValueAtTime(0.25, now + 0.01);
+			gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.22);
+			osc.connect(gain).connect(ctx.destination);
+			osc.start(now);
+			osc.stop(now + 0.24);
+		} catch {
+			// Browsers that block audio without a gesture will throw — silently skip.
+		}
+	}, [phase]);
 }
