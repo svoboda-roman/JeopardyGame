@@ -146,6 +146,7 @@ function PlayPage() {
 					<WagerInput
 						min={ddPending.min}
 						max={ddPending.max}
+						step={100}
 						label="How much?"
 						submitLabel="Wager"
 						onSubmit={(amount) => send({ type: "wager", amount })}
