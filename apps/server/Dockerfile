@@ -6,7 +6,7 @@ COPY package.json bun.lock ./
 COPY apps/server/package.json ./apps/server/package.json
 COPY apps/web/package.json ./apps/web/package.json
 
-RUN bun install --frozen-lockfile
+RUN bun install --frozen-lockfile --ignore-scripts
 
 COPY apps/server ./apps/server
 
