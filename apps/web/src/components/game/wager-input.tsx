@@ -4,12 +4,14 @@ import { Button } from "#/components/ui/button.tsx";
 export function WagerInput({
 	min,
 	max,
+	step = 1,
 	label,
 	submitLabel,
 	onSubmit,
 }: {
 	min: number;
 	max: number;
+	step?: number;
 	label: string;
 	submitLabel: string;
 	onSubmit: (amount: number) => void;
@@ -19,7 +21,13 @@ export function WagerInput({
 	const inputId = useId();
 
 	const num = Number(value);
-	const valid = Number.isInteger(num) && num >= min && num <= max;
+	const inRange = Number.isInteger(num) && num >= min && num <= max;
+	const onStep = step <= 1 ? true : num % step === 0;
+	const valid = inRange && onStep;
+	const hint =
+		value !== "" && inRange && !onStep
+			? `Wager must be a multiple of ${step}.`
+			: null;
 
 	function submit(e: React.FormEvent) {
 		e.preventDefault();
@@ -54,7 +62,7 @@ export function WagerInput({
 					inputMode="numeric"
 					min={min}
 					max={max}
-					step={1}
+					step={step}
 					value={value}
 					onChange={(e) => setValue(e.target.value)}
 					className="flex-1 rounded-md border bg-input px-3 py-2 score text-xl text-right focus:outline-none focus:border-primary focus:ring-3 focus:ring-ring/40"
@@ -63,6 +71,7 @@ export function WagerInput({
 					{submitLabel}
 				</Button>
 			</div>
+			{hint && <p className="text-xs text-destructive">{hint}</p>}
 		</form>
 	);
 }

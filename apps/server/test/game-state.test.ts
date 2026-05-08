@@ -420,8 +420,8 @@ describe("Daily Double", () => {
 		const dd = r.broadcasts.find((b) => b.type === "daily_double_pending");
 		expect(dd).toBeTruthy();
 		if (dd?.type === "daily_double_pending") {
-			expect(dd.min).toBe(5);
-			// Max = 100 * max(5, max remaining pointValue, score). Score is 0; max remaining is 200.
+			expect(dd.min).toBe(100);
+			// Max = 100 * max(100, max remaining pointValue, score). Score is 0; max remaining is 200.
 			expect(dd.max).toBe(20000);
 		}
 	});
@@ -479,10 +479,10 @@ describe("Daily Double", () => {
 		const wagerR = transition(ddState, {
 			type: "wager",
 			actorId: "p1",
-			amount: 150,
+			amount: 200,
 		});
 		expect(wagerR.state.phase).toBe("buzzed");
-		expect(wagerR.state.currentWager).toBe(150);
+		expect(wagerR.state.currentWager).toBe(200);
 		expect(wagerR.broadcasts.some((b) => b.type === "clue_revealed")).toBe(
 			true,
 		);
@@ -492,7 +492,7 @@ describe("Daily Double", () => {
 			actorId: "p-host",
 			verdict: "correct",
 		});
-		expect(judgedR.state.players.p1?.score).toBe(150);
+		expect(judgedR.state.players.p1?.score).toBe(200);
 		expect(judgedR.state.closedQuestions.has("q1")).toBe(true);
 		expect(judgedR.state.phase).toBe("picking");
 		expect(judgedR.state.currentPickerId).toBe("p1");
@@ -513,14 +513,14 @@ describe("Daily Double", () => {
 		ddState = transition(ddState, {
 			type: "wager",
 			actorId: "p1",
-			amount: 50,
+			amount: 100,
 		}).state;
 		const r = transition(ddState, {
 			type: "judge",
 			actorId: "p-host",
 			verdict: "no_answer",
 		});
-		expect(r.state.players.p1?.score).toBe(-50);
+		expect(r.state.players.p1?.score).toBe(-100);
 		expect(r.state.closedQuestions.has("q1")).toBe(true);
 	});
 
@@ -538,7 +538,7 @@ describe("Daily Double", () => {
 		ddState = transition(ddState, {
 			type: "wager",
 			actorId: "p1",
-			amount: 50,
+			amount: 100,
 		}).state;
 		// p2 cannot buzz; phase is 'buzzed' already (not buzz_open) so any buzz is invalid.
 		expect(() =>

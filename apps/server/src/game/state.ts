@@ -203,9 +203,9 @@ export function ddWagerBounds(
 	const remaining = Object.values(state.board.questions)
 		.filter((q) => !state.closedQuestions.has(q.ref))
 		.map((q) => q.pointValue);
-	const maxRemaining = remaining.length > 0 ? Math.max(...remaining) : 5;
-	const max = Math.max(5, maxRemaining, p?.score ?? 0) * 100;
-	return { min: 5, max };
+	const maxRemaining = remaining.length > 0 ? Math.max(...remaining) : 100;
+	const max = Math.max(100, maxRemaining, p?.score ?? 0) * 100;
+	return { min: 100, max };
 }
 
 // ───── View projection (state → wire view) ─────
@@ -771,11 +771,12 @@ export function transition(state: GameState, intent: Intent): TransitionResult {
 			if (
 				!Number.isInteger(intent.amount) ||
 				intent.amount < min ||
-				intent.amount > max
+				intent.amount > max ||
+				intent.amount % 100 !== 0
 			) {
 				throw new GameError(
 					"invalid_wager",
-					`Wager must be an integer between ${min} and ${max}`,
+					`Wager must be a multiple of 100 between ${min} and ${max}`,
 				);
 			}
 			const q = state.board.questions[state.currentQuestionRef];
