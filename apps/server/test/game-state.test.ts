@@ -421,8 +421,8 @@ describe("Daily Double", () => {
 		expect(dd).toBeTruthy();
 		if (dd?.type === "daily_double_pending") {
 			expect(dd.min).toBe(5);
-			// Max = max(5, max remaining pointValue, score). Score is 0; max remaining is 200.
-			expect(dd.max).toBe(200);
+			// Max = 100 * max(5, max remaining pointValue, score). Score is 0; max remaining is 200.
+			expect(dd.max).toBe(20000);
 		}
 	});
 
