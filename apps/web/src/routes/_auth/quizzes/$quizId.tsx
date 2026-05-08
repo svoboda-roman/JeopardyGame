@@ -73,6 +73,7 @@ function parseSettings(raw: Record<string, unknown>): GameSettings {
 		readDelayMs: typeof raw.readDelayMs === "number" ? raw.readDelayMs : 3000,
 		allowReopen: typeof raw.allowReopen === "boolean" ? raw.allowReopen : false,
 		ddCount: typeof raw.ddCount === "number" ? raw.ddCount : 0,
+		shotsCount: typeof raw.shotsCount === "number" ? raw.shotsCount : 0,
 	};
 }
 
@@ -910,6 +911,7 @@ interface GameSettings {
 	readDelayMs: number;
 	allowReopen: boolean;
 	ddCount: number;
+	shotsCount: number;
 }
 
 function GameSettingsContext({
@@ -951,13 +953,16 @@ function SettingsButton({
 	onFlush: () => void;
 }) {
 	const [open, setOpen] = useState(false);
+	const [tab, setTab] = useState<"general" | "alcohol">("general");
 	const manualId = useId();
 	const finalId = useId();
 	const delayId = useId();
 	const reopenId = useId();
 	const ddCountId = useId();
+	const shotsCountId = useId();
 	const [ddDraft, setDdDraft] = useState(String(settings.ddCount));
 	const [delayDraft, setDelayDraft] = useState(String(settings.readDelayMs));
+	const [shotsDraft, setShotsDraft] = useState(String(settings.shotsCount));
 
 	const close = useCallback(() => {
 		onFlush();
@@ -999,139 +1004,193 @@ function SettingsButton({
 										Game settings
 									</h2>
 
-									<label
-										htmlFor={manualId}
-										className="flex items-center gap-3 text-sm cursor-pointer"
-									>
-										<input
-											id={manualId}
-											type="checkbox"
-											checked={settings.manualPoints}
-											onChange={(e) =>
-												onChange({
-													...settings,
-													manualPoints: e.target.checked,
-												})
-											}
-											className="size-4"
-										/>
-										<span>
-											<span className="block font-medium">
-												Manual point assignment
-											</span>
-											<span className="block text-xs text-muted-foreground">
-												Disable automatic scoring. Host assigns points manually
-												during gameplay.
-											</span>
-										</span>
-									</label>
+									<Tabs
+										className="-mx-1"
+										value={tab}
+										onChange={setTab}
+										items={[
+											{ key: "general", label: "General" },
+											{
+												key: "alcohol",
+												label: "🍻 Alcohol",
+												activeBorderClass: "border-[color:var(--gold)]",
+											},
+										]}
+									/>
 
-									<label
-										htmlFor={finalId}
-										className="flex items-center gap-3 text-sm cursor-pointer"
-									>
-										<input
-											id={finalId}
-											type="checkbox"
-											checked={settings.finalEnabled}
-											onChange={(e) =>
-												onChange({
-													...settings,
-													finalEnabled: e.target.checked,
-												})
-											}
-											className="size-4"
-										/>
-										<span>
-											<span className="block font-medium">Final Jeopardy</span>
-											<span className="block text-xs text-muted-foreground">
-												Play a final round after the board is cleared (requires
-												a final question on the quiz).
-											</span>
-										</span>
-									</label>
+									{tab === "general" ? (
+										<>
+											<label
+												htmlFor={manualId}
+												className="flex items-center gap-3 text-sm cursor-pointer"
+											>
+												<input
+													id={manualId}
+													type="checkbox"
+													checked={settings.manualPoints}
+													onChange={(e) =>
+														onChange({
+															...settings,
+															manualPoints: e.target.checked,
+														})
+													}
+													className="size-4"
+												/>
+												<span>
+													<span className="block font-medium">
+														Manual point assignment
+													</span>
+													<span className="block text-xs text-muted-foreground">
+														Disable automatic scoring. Host assigns points
+														manually during gameplay.
+													</span>
+												</span>
+											</label>
 
-									<label
-										htmlFor={reopenId}
-										className="flex items-center gap-3 text-sm cursor-pointer"
-									>
-										<input
-											id={reopenId}
-											type="checkbox"
-											checked={settings.allowReopen}
-											onChange={(e) =>
-												onChange({ ...settings, allowReopen: e.target.checked })
-											}
-											className="size-4"
-										/>
-										<span>
-											<span className="block font-medium">
-												Allow revisiting answered questions
-											</span>
-											<span className="block text-xs text-muted-foreground">
-												Answered questions stay gray but remain clickable so the
-												host can replay them.
-											</span>
-										</span>
-									</label>
+											<label
+												htmlFor={finalId}
+												className="flex items-center gap-3 text-sm cursor-pointer"
+											>
+												<input
+													id={finalId}
+													type="checkbox"
+													checked={settings.finalEnabled}
+													onChange={(e) =>
+														onChange({
+															...settings,
+															finalEnabled: e.target.checked,
+														})
+													}
+													className="size-4"
+												/>
+												<span>
+													<span className="block font-medium">
+														Final Jeopardy
+													</span>
+													<span className="block text-xs text-muted-foreground">
+														Play a final round after the board is cleared
+														(requires a final question on the quiz).
+													</span>
+												</span>
+											</label>
 
-									<div className="space-y-1">
-										<label
-											htmlFor={delayId}
-											className="text-xs font-semibold uppercase tracking-wider text-muted-foreground"
-										>
-											Read delay (ms)
-										</label>
-										<input
-											id={delayId}
-											type="text"
-											inputMode="numeric"
-											value={delayDraft}
-											onChange={(e) => {
-												const raw = e.target.value.replace(/[^0-9]/g, "");
-												setDelayDraft(raw);
-												const n = raw === "" ? 0 : Number(raw);
-												onChange({
-													...settings,
-													readDelayMs: Math.min(10000, Math.max(0, n)),
-												});
-											}}
-											className="w-full rounded-md border bg-input px-3 py-2 focus:outline-none focus:border-primary focus:ring-3 focus:ring-ring/40"
-										/>
-										<p className="text-xs text-muted-foreground">
-											Time before buzzers open after the host opens a question.
-										</p>
-									</div>
+											<label
+												htmlFor={reopenId}
+												className="flex items-center gap-3 text-sm cursor-pointer"
+											>
+												<input
+													id={reopenId}
+													type="checkbox"
+													checked={settings.allowReopen}
+													onChange={(e) =>
+														onChange({
+															...settings,
+															allowReopen: e.target.checked,
+														})
+													}
+													className="size-4"
+												/>
+												<span>
+													<span className="block font-medium">
+														Allow revisiting answered questions
+													</span>
+													<span className="block text-xs text-muted-foreground">
+														Answered questions stay gray but remain clickable so
+														the host can replay them.
+													</span>
+												</span>
+											</label>
 
-									<div className="space-y-1">
-										<label
-											htmlFor={ddCountId}
-											className="text-xs font-semibold uppercase tracking-wider text-muted-foreground"
-										>
-											Random Daily Doubles
-										</label>
-										<input
-											id={ddCountId}
-											type="text"
-											inputMode="numeric"
-											value={ddDraft}
-											onChange={(e) => {
-												const raw = e.target.value.replace(/[^0-9]/g, "");
-												setDdDraft(raw);
-												const n = raw === "" ? 0 : Number(raw);
-												onChange({
-													...settings,
-													ddCount: Math.min(30, Math.max(0, n)),
-												});
-											}}
-											className="w-full rounded-md border bg-input px-3 py-2 focus:outline-none focus:border-primary focus:ring-3 focus:ring-ring/40"
-										/>
-										<p className="text-xs text-muted-foreground">
-											Mark this many extra questions as Daily Doubles at game
-											start, picked at random. Added on top of any DDs you've
-											authored.
-										</p>
-									</div>
+											<div className="space-y-1">
+												<label
+													htmlFor={delayId}
+													className="text-xs font-semibold uppercase tracking-wider text-muted-foreground"
+												>
+													Read delay (ms)
+												</label>
+												<input
+													id={delayId}
+													type="text"
+													inputMode="numeric"
+													value={delayDraft}
+													onChange={(e) => {
+														const raw = e.target.value.replace(/[^0-9]/g, "");
+														setDelayDraft(raw);
+														const n = raw === "" ? 0 : Number(raw);
+														onChange({
+															...settings,
+															readDelayMs: Math.min(10000, Math.max(0, n)),
+														});
+													}}
+													className="w-full rounded-md border bg-input px-3 py-2 focus:outline-none focus:border-primary focus:ring-3 focus:ring-ring/40"
+												/>
+												<p className="text-xs text-muted-foreground">
+													Time before buzzers open after the host opens a
+													question.
+												</p>
+											</div>
+
+											<div className="space-y-1">
+												<label
+													htmlFor={ddCountId}
+													className="text-xs font-semibold uppercase tracking-wider text-muted-foreground"
+												>
+													Random Daily Doubles
+												</label>
+												<input
+													id={ddCountId}
+													type="text"
+													inputMode="numeric"
+													value={ddDraft}
+													onChange={(e) => {
+														const raw = e.target.value.replace(/[^0-9]/g, "");
+														setDdDraft(raw);
+														const n = raw === "" ? 0 : Number(raw);
+														onChange({
+															...settings,
+															ddCount: Math.min(30, Math.max(0, n)),
+														});
+													}}
+													className="w-full rounded-md border bg-input px-3 py-2 focus:outline-none focus:border-primary focus:ring-3 focus:ring-ring/40"
+												/>
+												<p className="text-xs text-muted-foreground">
+													Mark this many extra questions as Daily Doubles at
+													game start, picked at random. Added on top of any DDs
+													you've authored.
+												</p>
+											</div>
+										</>
+									) : (
+										<div className="space-y-1">
+											<label
+												htmlFor={shotsCountId}
+												className="text-xs font-semibold uppercase tracking-wider text-muted-foreground"
+											>
+												Random Shots 🥃
+											</label>
+											<input
+												id={shotsCountId}
+												type="text"
+												inputMode="numeric"
+												value={shotsDraft}
+												onChange={(e) => {
+													const raw = e.target.value.replace(/[^0-9]/g, "");
+													setShotsDraft(raw);
+													const n = raw === "" ? 0 : Number(raw);
+													onChange({
+														...settings,
+														shotsCount: Math.min(30, Math.max(0, n)),
+													});
+												}}
+												className="w-full rounded-md border bg-input px-3 py-2 focus:outline-none focus:border-primary focus:ring-3 focus:ring-ring/40"
+											/>
+											<p className="text-xs text-muted-foreground">
+												Random questions marked as shots. The player who picks a
+												shot question has to drink. Picked at game start; never
+												overlaps with Daily Doubles.
+											</p>
+										</div>
+									)}
 
 									<div className="flex justify-end">
 										<Button onClick={close}>Done</Button>
