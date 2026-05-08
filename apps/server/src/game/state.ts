@@ -194,18 +194,12 @@ function fjAvailable(state: GameState, closed: Set<string>): boolean {
 	return fjEligiblePlayers(state).length > 0;
 }
 
-/** Min and max wager bounds for a Daily Double picked by `playerId`. */
+/** Min and max wager bounds for a Daily Double. Fixed 100–500 range. */
 export function ddWagerBounds(
-	state: GameState,
-	playerId: string,
+	_state: GameState,
+	_playerId: string,
 ): { min: number; max: number } {
-	const p = state.players[playerId];
-	const remaining = Object.values(state.board.questions)
-		.filter((q) => !state.closedQuestions.has(q.ref))
-		.map((q) => q.pointValue);
-	const maxRemaining = remaining.length > 0 ? Math.max(...remaining) : 100;
-	const max = Math.max(100, maxRemaining, p?.score ?? 0) * 100;
-	return { min: 100, max };
+	return { min: 100, max: 500 };
 }
 
 // ───── View projection (state → wire view) ─────

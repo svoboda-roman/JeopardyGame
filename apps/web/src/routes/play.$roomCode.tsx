@@ -459,7 +459,7 @@ function ClueCard({
 							key={m.id}
 							src={apiUrl(m.url)}
 							alt=""
-							className="max-h-56 rounded-md border"
+							className="max-h-56 max-w-full rounded-md border"
 						/>
 					))}
 				</div>
@@ -500,7 +500,7 @@ function BuzzControl({
 			aria-label="Buzz"
 			onClick={onBuzz}
 			disabled={!canBuzz}
-			className={`buzz w-full rounded-3xl font-heading font-bold text-3xl tracking-widest py-16 select-none ${
+			className={`buzz w-full rounded-3xl font-heading font-bold text-3xl tracking-widest py-12 sm:py-16 select-none ${
 				canBuzz ? "buzz-pulse" : ""
 			}`}
 		>
@@ -627,7 +627,7 @@ function FJAnswerInput({
 				value={text}
 				onChange={(e) => setText(e.target.value)}
 				maxLength={200}
-				className="w-full rounded-md border bg-input px-3 py-2 focus:outline-none focus:border-primary focus:ring-3 focus:ring-ring/40"
+				className="w-full rounded-md border bg-input px-3 py-2 text-base focus:outline-none focus:border-primary focus:ring-3 focus:ring-ring/40"
 			/>
 			<Button type="submit" className="w-full" disabled={!text.trim()}>
 				Submit answer

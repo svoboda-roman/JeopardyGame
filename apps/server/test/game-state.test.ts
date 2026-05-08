@@ -421,8 +421,7 @@ describe("Daily Double", () => {
 		expect(dd).toBeTruthy();
 		if (dd?.type === "daily_double_pending") {
 			expect(dd.min).toBe(100);
-			// Max = 100 * max(100, max remaining pointValue, score). Score is 0; max remaining is 200.
-			expect(dd.max).toBe(20000);
+			expect(dd.max).toBe(500);
 		}
 	});
 
@@ -479,10 +478,10 @@ describe("Daily Double", () => {
 		const wagerR = transition(ddState, {
 			type: "wager",
 			actorId: "p1",
-			amount: 200,
+			amount: 100,
 		});
 		expect(wagerR.state.phase).toBe("buzzed");
-		expect(wagerR.state.currentWager).toBe(200);
+		expect(wagerR.state.currentWager).toBe(100);
 		expect(wagerR.broadcasts.some((b) => b.type === "clue_revealed")).toBe(
 			true,
 		);
@@ -492,7 +491,7 @@ describe("Daily Double", () => {
 			actorId: "p-host",
 			verdict: "correct",
 		});
-		expect(judgedR.state.players.p1?.score).toBe(200);
+		expect(judgedR.state.players.p1?.score).toBe(100);
 		expect(judgedR.state.closedQuestions.has("q1")).toBe(true);
 		expect(judgedR.state.phase).toBe("picking");
 		expect(judgedR.state.currentPickerId).toBe("p1");
