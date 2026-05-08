@@ -105,6 +105,7 @@ export const createGameStore = () =>
 							currentQuestion: msg.question,
 							buzzOpensAt: msg.opensBuzzAt,
 							currentPlayerId: null,
+							buzzQueue: [],
 						},
 					});
 					return;
@@ -112,7 +113,7 @@ export const createGameStore = () =>
 				case "buzz_open": {
 					const g = get().game;
 					if (!g) return;
-					set({ game: { ...g, phase: "buzz_open" } });
+					set({ game: { ...g, phase: "buzz_open", buzzQueue: [] } });
 					return;
 				}
 				case "buzzed": {
@@ -165,6 +166,7 @@ export const createGameStore = () =>
 							currentPlayerId: null,
 							buzzOpensAt: null,
 							currentWager: null,
+							buzzQueue: [],
 						},
 						ddPending: null,
 					});
@@ -200,6 +202,7 @@ export const createGameStore = () =>
 							currentQuestion: msg.question,
 							currentPlayerId: msg.pickerId,
 							currentWager: msg.wager,
+							buzzQueue: [],
 						},
 						ddPending: null,
 					});
