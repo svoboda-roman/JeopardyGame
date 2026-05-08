@@ -29,17 +29,17 @@ export function DrinkToast({
 	const drink = drinks.find((d) => d.id === order.drinkId);
 	const buyer = players.find((p) => p.id === order.buyerId);
 	const recipient = players.find((p) => p.id === order.recipientId);
+	const me = selfId ? players.find((p) => p.id === selfId) : null;
 	if (!drink || !buyer || !recipient) return null;
+	// Recipient gets the blocking modal; host gets the persistent queue.
+	// Suppress the transient toast for both so it doesn't double-up.
+	if (me?.isHost || order.recipientId === selfId) return null;
 
 	const icon = iconForDrink(drink.name);
-	const youAreRecipient = order.recipientId === selfId;
 	const youAreBuyer = order.buyerId === selfId;
-
-	const message = youAreRecipient
-		? `${icon} ${buyer.displayName} bought you a ${drink.name}!`
-		: youAreBuyer
-			? `${icon} You bought ${recipient.displayName} a ${drink.name}.`
-			: `${icon} ${buyer.displayName} bought ${recipient.displayName} a ${drink.name}.`;
+	const message = youAreBuyer
+		? `${icon} You bought ${recipient.displayName} a ${drink.name}.`
+		: `${icon} ${buyer.displayName} bought ${recipient.displayName} a ${drink.name}.`;
 
 	return (
 		<div

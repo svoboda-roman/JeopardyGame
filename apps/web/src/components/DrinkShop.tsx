@@ -21,6 +21,9 @@ export function DrinkShopButton({
 }) {
 	const [open, setOpen] = useState(false);
 	if (game.phase === "lobby") return null;
+	// Host doesn't get to buy drinks; they only confirm them.
+	const me = selfId ? game.players.find((p) => p.id === selfId) : null;
+	if (me?.isHost) return null;
 	const drinks = game.drinks ?? [];
 	const orders = game.drinkOrders ?? [];
 

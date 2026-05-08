@@ -339,6 +339,15 @@ export const createGameStore = () =>
 					});
 					return;
 				}
+				case "drink_acknowledged": {
+					const g = get().game;
+					if (!g) return;
+					const drinkOrders = g.drinkOrders.map((o) =>
+						o.id === msg.orderId ? { ...o, acknowledgedAtMs: msg.atMs } : o,
+					);
+					set({ game: { ...g, drinkOrders } });
+					return;
+				}
 				case "error":
 					set({ lastError: { code: msg.code, message: msg.message } });
 					return;

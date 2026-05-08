@@ -147,6 +147,12 @@ function intentFor(playerId: string, msg: ClientToServer): Intent | null {
 				drinkId: msg.drinkId,
 				nowMs: Date.now(),
 			};
+		case "acknowledge_drink":
+			return {
+				type: "acknowledge_drink",
+				actorId: playerId,
+				orderId: msg.orderId,
+			};
 		case "leave":
 		case "ping":
 			return null;

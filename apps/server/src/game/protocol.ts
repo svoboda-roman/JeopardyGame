@@ -71,6 +71,8 @@ export interface DrinkOrderView {
 	recipientId: string;
 	drinkId: string;
 	atMs: number;
+	/** When the host marked this drink as drunk. Null while pending. */
+	acknowledgedAtMs: number | null;
 }
 
 export interface FinalJeopardyView {
@@ -159,6 +161,7 @@ export type ClientToServer =
 			shotsCount?: number;
 	  }
 	| { type: "buy_drink"; recipientId: string; drinkId: string }
+	| { type: "acknowledge_drink"; orderId: string }
 	| { type: "leave" }
 	| { type: "ping" };
 
@@ -235,5 +238,6 @@ export type ServerToClient =
 			>;
 	  }
 	| { type: "drink_purchased"; order: DrinkOrderView }
+	| { type: "drink_acknowledged"; orderId: string; atMs: number }
 	| { type: "pong" }
 	| { type: "error"; code: string; message: string };

@@ -4,6 +4,7 @@ import { useStore } from "zustand";
 import { DrinkShopButton } from "#/components/DrinkShop.tsx";
 import { DrinkToast } from "#/components/DrinkToast.tsx";
 import { WagerInput } from "#/components/game/wager-input.tsx";
+import { PendingDrinkModal } from "#/components/PendingDrinkModal.tsx";
 import { Button } from "#/components/ui/button.tsx";
 import { apiUrl } from "#/lib/api.ts";
 import { useGameSocket } from "#/lib/game-socket.ts";
@@ -147,6 +148,14 @@ function PlayPage() {
 					<DrinkShopButton game={game} selfId={selfId} send={send} />
 				</div>
 			)}
+
+			<PendingDrinkModal
+				orders={(game.drinkOrders ?? []).filter(
+					(o) => o.recipientId === selfId && o.acknowledgedAtMs === null,
+				)}
+				drinks={game.drinks ?? []}
+				players={game.players}
+			/>
 
 			{lastDrink && (
 				<DrinkToast

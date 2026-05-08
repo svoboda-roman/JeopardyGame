@@ -395,6 +395,7 @@ export type Intent =
 			drinkId: string;
 			nowMs: number;
 	  }
+	| { type: "acknowledge_drink"; actorId: string; orderId: string }
 	| { type: "wager"; actorId: string; amount: number }
 	| { type: "start_final"; actorId: string }
 	| { type: "fj_wager"; actorId: string; amount: number }
@@ -1084,7 +1085,9 @@ export function transition(state: GameState, intent: Intent): TransitionResult {
 		case "buy_drink": {
 			if (state.phase === "lobby")
 				throw new GameError("invalid_state", "Shop opens once the game starts");
-			requirePlayer(state, intent.actorId);
+			const actor = requirePlayer(state, intent.actorId);
+			if (actor.isHost)
+				throw new GameError("forbidden", "Host can't buy drinks");
 			if (intent.actorId === intent.recipientId)
 				throw new GameError("cannot_self_buy", "Buy for someone else");
 			if (!state.players[intent.recipientId])
@@ -1097,12 +1100,29 @@ export function transition(state: GameState, intent: Intent): TransitionResult {
 				recipientId: intent.recipientId,
 				drinkId: drink.id,
 				atMs: intent.nowMs,
+				acknowledgedAtMs: null,
 			};
 			const next: GameState = {
 				...state,
 				drinkOrders: [...state.drinkOrders, order],
 			};
 			return ok(next, [{ type: "drink_purchased", order }]);
+		}
+
+		case "acknowledge_drink": {
+			requireHost(state, intent.actorId);
+			const idx = state.drinkOrders.findIndex((o) => o.id === intent.orderId);
+			if (idx === -1) throw new GameError("not_found", "Unknown order");
+			const order = state.drinkOrders[idx];
+			if (!order || order.acknowledgedAtMs !== null) return ok(state);
+			const ackedAt = Date.now();
+			const updated: DrinkOrderView = { ...order, acknowledgedAtMs: ackedAt };
+			const orders = [...state.drinkOrders];
+			orders[idx] = updated;
+			const next: GameState = { ...state, drinkOrders: orders };
+			return ok(next, [
+				{ type: "drink_acknowledged", orderId: order.id, atMs: ackedAt },
+			]);
 		}
 	}
 }

@@ -502,6 +502,60 @@ describe("buy_drink", () => {
 		expect(r.state.drinkOrders[0]?.recipientId).toBe("p-host");
 	});
 
+	it("rejects host as buyer", () => {
+		expect(() =>
+			transition(s, {
+				type: "buy_drink",
+				actorId: "p-host",
+				recipientId: "p1",
+				drinkId: "d1",
+				nowMs: 1_000,
+			}),
+		).toThrow();
+	});
+
+	it("starts orders unacknowledged and host can mark drank", () => {
+		let cur = transition(s, {
+			type: "buy_drink",
+			actorId: "p1",
+			recipientId: "p-host",
+			drinkId: "d1",
+			nowMs: 1_000,
+		}).state;
+		expect(cur.drinkOrders[0]?.acknowledgedAtMs).toBeNull();
+		const orderId = cur.drinkOrders[0]?.id ?? "";
+		const r2 = transition(cur, {
+			type: "acknowledge_drink",
+			actorId: "p-host",
+			orderId,
+		});
+		cur = r2.state;
+		expect(cur.drinkOrders[0]?.acknowledgedAtMs).toBeTypeOf("number");
+		expect(
+			r2.broadcasts.some(
+				(b) => b.type === "drink_acknowledged" && b.orderId === orderId,
+			),
+		).toBe(true);
+	});
+
+	it("rejects acknowledge by non-host", () => {
+		const cur = transition(s, {
+			type: "buy_drink",
+			actorId: "p1",
+			recipientId: "p2",
+			drinkId: "d1",
+			nowMs: 1_000,
+		}).state;
+		const orderId = cur.drinkOrders[0]?.id ?? "";
+		expect(() =>
+			transition(cur, {
+				type: "acknowledge_drink",
+				actorId: "p1",
+				orderId,
+			}),
+		).toThrow();
+	});
+
 	it("rejects in lobby phase", () => {
 		const lobby = newGame({
 			roomCode: "DRINKL",
