@@ -265,6 +265,7 @@ function HostPage() {
 						answer={game.currentQuestion.answer}
 						pointValue={game.currentQuestion.pointValue}
 						isDailyDouble={game.currentQuestion.isDailyDouble}
+						isShot={game.currentQuestion.isShot}
 						media={game.currentQuestion.media ?? []}
 						answerMedia={game.currentQuestion.answerMedia ?? []}
 						youtubeId={game.currentQuestion.youtubeId ?? null}
@@ -469,6 +470,7 @@ function QuestionModal({
 	answer,
 	pointValue,
 	isDailyDouble,
+	isShot,
 	media,
 	answerMedia,
 	youtubeId,
@@ -487,6 +489,7 @@ function QuestionModal({
 	answer: string;
 	pointValue: number;
 	isDailyDouble: boolean;
+	isShot: boolean;
 	media: { id: string; mime: string; url: string }[];
 	answerMedia: { id: string; mime: string; url: string }[];
 	youtubeId: string | null;
@@ -538,6 +541,11 @@ function QuestionModal({
 						) : (
 							<span className="score text-lg">
 								${currentWager ?? pointValue}
+							</span>
+						)}
+						{isShot && (
+							<span className="text-[color:var(--gold)] flex items-center gap-1.5 rounded-full border border-[color:var(--gold)]/50 bg-[color:var(--gold)]/10 px-2 py-0.5">
+								🥃 Shot — picker drinks
 							</span>
 						)}
 					</div>
@@ -1083,11 +1091,13 @@ function LobbySettingsButton({
 	send: (msg: ClientToServer) => void;
 }) {
 	const [open, setOpen] = useState(false);
+	const [tab, setTab] = useState<"general" | "alcohol">("general");
 	const manualId = useId();
 	const finalId = useId();
 	const reopenId = useId();
 	const delayId = useId();
 	const ddCountId = useId();
+	const shotsCountId = useId();
 
 	const [local, setLocal] = useState({
 		manualPoints: game.manualPoints,
@@ -1095,9 +1105,11 @@ function LobbySettingsButton({
 		allowReopen: game.allowReopen,
 		readDelayMs: game.readDelayMs,
 		ddCount: game.ddCount,
+		shotsCount: game.shotsCount,
 	});
 	const [ddDraft, setDdDraft] = useState(String(game.ddCount));
 	const [delayDraft, setDelayDraft] = useState(String(game.readDelayMs));
+	const [shotsDraft, setShotsDraft] = useState(String(game.shotsCount));
 
 	const close = useCallback(() => {
 		send({ type: "update_settings", ...local });
@@ -1121,9 +1133,12 @@ function LobbySettingsButton({
 				allowReopen: game.allowReopen,
 				readDelayMs: game.readDelayMs,
 				ddCount: game.ddCount,
+				shotsCount: game.shotsCount,
 			});
 			setDdDraft(String(game.ddCount));
 			setDelayDraft(String(game.readDelayMs));
+			setShotsDraft(String(game.shotsCount));
+			setTab("general");
 		}
 	}, [
 		game.manualPoints,
@@ -1131,6 +1146,7 @@ function LobbySettingsButton({
 		game.allowReopen,
 		game.readDelayMs,
 		game.ddCount,
+		game.shotsCount,
 		open,
 	]);
 
@@ -1160,130 +1176,201 @@ function LobbySettingsButton({
 										Game settings
 									</h2>
 
-									<label
-										htmlFor={manualId}
-										className="flex items-center gap-3 text-sm cursor-pointer"
-									>
-										<input
-											id={manualId}
-											type="checkbox"
-											checked={local.manualPoints}
-											onChange={(e) =>
-												setLocal({ ...local, manualPoints: e.target.checked })
-											}
-											className="size-4"
-										/>
-										<span>
-											<span className="block font-medium">
-												Manual point assignment
-											</span>
-											<span className="block text-xs text-muted-foreground">
-												Disable automatic scoring. Host assigns points manually
-												during gameplay.
-											</span>
-										</span>
-									</label>
-
-									<label
-										htmlFor={finalId}
-										className="flex items-center gap-3 text-sm cursor-pointer"
-									>
-										<input
-											id={finalId}
-											type="checkbox"
-											checked={local.finalEnabled}
-											onChange={(e) =>
-												setLocal({ ...local, finalEnabled: e.target.checked })
-											}
-											className="size-4"
-										/>
-										<span>
-											<span className="block font-medium">Final Jeopardy</span>
-											<span className="block text-xs text-muted-foreground">
-												Play a final round after the board is cleared.
-											</span>
-										</span>
-									</label>
-
-									<label
-										htmlFor={reopenId}
-										className="flex items-center gap-3 text-sm cursor-pointer"
-									>
-										<input
-											id={reopenId}
-											type="checkbox"
-											checked={local.allowReopen}
-											onChange={(e) =>
-												setLocal({ ...local, allowReopen: e.target.checked })
-											}
-											className="size-4"
-										/>
-										<span>
-											<span className="block font-medium">
-												Allow revisiting answered questions
-											</span>
-											<span className="block text-xs text-muted-foreground">
-												Answered questions stay gray but remain clickable.
-											</span>
-										</span>
-									</label>
-
-									<div className="space-y-1">
-										<label
-											htmlFor={delayId}
-											className="text-xs font-semibold uppercase tracking-wider text-muted-foreground"
+									<div className="flex border-b border-border -mx-1">
+										<button
+											type="button"
+											onClick={() => setTab("general")}
+											className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors -mb-px ${
+												tab === "general"
+													? "border-primary text-foreground"
+													: "border-transparent text-muted-foreground hover:text-foreground"
+											}`}
 										>
-											Read delay (ms)
-										</label>
-										<input
-											id={delayId}
-											type="text"
-											inputMode="numeric"
-											value={delayDraft}
-											onChange={(e) => {
-												const raw = e.target.value.replace(/[^0-9]/g, "");
-												setDelayDraft(raw);
-												const n = raw === "" ? 0 : Number(raw);
-												setLocal({
-													...local,
-													readDelayMs: Math.min(10000, Math.max(0, n)),
-												});
-											}}
-											className="w-full rounded-md border bg-input px-3 py-2 focus:outline-none focus:border-primary focus:ring-3 focus:ring-ring/40"
-										/>
-										<p className="text-xs text-muted-foreground">
-											Time before buzzers open after the host opens a question.
-										</p>
+											General
+										</button>
+										<button
+											type="button"
+											onClick={() => setTab("alcohol")}
+											className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors -mb-px ${
+												tab === "alcohol"
+													? "border-[color:var(--gold)] text-foreground"
+													: "border-transparent text-muted-foreground hover:text-foreground"
+											}`}
+										>
+											🍻 Alcohol
+										</button>
 									</div>
 
-									<div className="space-y-1">
-										<label
-											htmlFor={ddCountId}
-											className="text-xs font-semibold uppercase tracking-wider text-muted-foreground"
-										>
-											Random Daily Doubles
-										</label>
-										<input
-											id={ddCountId}
-											type="text"
-											inputMode="numeric"
-											value={ddDraft}
-											onChange={(e) => {
-												const raw = e.target.value.replace(/[^0-9]/g, "");
-												setDdDraft(raw);
-												const n = raw === "" ? 0 : Number(raw);
-												setLocal({
-													...local,
-													ddCount: Math.min(30, Math.max(0, n)),
-												});
-											}}
-											className="w-full rounded-md border bg-input px-3 py-2 focus:outline-none focus:border-primary focus:ring-3 focus:ring-ring/40"
-										/>
-										<p className="text-xs text-muted-foreground">
-											Extra Daily Doubles picked at random when the game starts.
-											Added on top of any DDs the quiz authored.
-										</p>
-									</div>
+									{tab === "general" ? (
+										<>
+											<label
+												htmlFor={manualId}
+												className="flex items-center gap-3 text-sm cursor-pointer"
+											>
+												<input
+													id={manualId}
+													type="checkbox"
+													checked={local.manualPoints}
+													onChange={(e) =>
+														setLocal({
+															...local,
+															manualPoints: e.target.checked,
+														})
+													}
+													className="size-4"
+												/>
+												<span>
+													<span className="block font-medium">
+														Manual point assignment
+													</span>
+													<span className="block text-xs text-muted-foreground">
+														Disable automatic scoring. Host assigns points
+														manually during gameplay.
+													</span>
+												</span>
+											</label>
+
+											<label
+												htmlFor={finalId}
+												className="flex items-center gap-3 text-sm cursor-pointer"
+											>
+												<input
+													id={finalId}
+													type="checkbox"
+													checked={local.finalEnabled}
+													onChange={(e) =>
+														setLocal({
+															...local,
+															finalEnabled: e.target.checked,
+														})
+													}
+													className="size-4"
+												/>
+												<span>
+													<span className="block font-medium">
+														Final Jeopardy
+													</span>
+													<span className="block text-xs text-muted-foreground">
+														Play a final round after the board is cleared.
+													</span>
+												</span>
+											</label>
+
+											<label
+												htmlFor={reopenId}
+												className="flex items-center gap-3 text-sm cursor-pointer"
+											>
+												<input
+													id={reopenId}
+													type="checkbox"
+													checked={local.allowReopen}
+													onChange={(e) =>
+														setLocal({
+															...local,
+															allowReopen: e.target.checked,
+														})
+													}
+													className="size-4"
+												/>
+												<span>
+													<span className="block font-medium">
+														Allow revisiting answered questions
+													</span>
+													<span className="block text-xs text-muted-foreground">
+														Answered questions stay gray but remain clickable.
+													</span>
+												</span>
+											</label>
+
+											<div className="space-y-1">
+												<label
+													htmlFor={delayId}
+													className="text-xs font-semibold uppercase tracking-wider text-muted-foreground"
+												>
+													Read delay (ms)
+												</label>
+												<input
+													id={delayId}
+													type="text"
+													inputMode="numeric"
+													value={delayDraft}
+													onChange={(e) => {
+														const raw = e.target.value.replace(/[^0-9]/g, "");
+														setDelayDraft(raw);
+														const n = raw === "" ? 0 : Number(raw);
+														setLocal({
+															...local,
+															readDelayMs: Math.min(10000, Math.max(0, n)),
+														});
+													}}
+													className="w-full rounded-md border bg-input px-3 py-2 focus:outline-none focus:border-primary focus:ring-3 focus:ring-ring/40"
+												/>
+												<p className="text-xs text-muted-foreground">
+													Time before buzzers open after the host opens a
+													question.
+												</p>
+											</div>
+
+											<div className="space-y-1">
+												<label
+													htmlFor={ddCountId}
+													className="text-xs font-semibold uppercase tracking-wider text-muted-foreground"
+												>
+													Random Daily Doubles
+												</label>
+												<input
+													id={ddCountId}
+													type="text"
+													inputMode="numeric"
+													value={ddDraft}
+													onChange={(e) => {
+														const raw = e.target.value.replace(/[^0-9]/g, "");
+														setDdDraft(raw);
+														const n = raw === "" ? 0 : Number(raw);
+														setLocal({
+															...local,
+															ddCount: Math.min(30, Math.max(0, n)),
+														});
+													}}
+													className="w-full rounded-md border bg-input px-3 py-2 focus:outline-none focus:border-primary focus:ring-3 focus:ring-ring/40"
+												/>
+												<p className="text-xs text-muted-foreground">
+													Extra Daily Doubles picked at random when the game
+													starts. Added on top of any DDs the quiz authored.
+												</p>
+											</div>
+										</>
+									) : (
+										<div className="space-y-1">
+											<label
+												htmlFor={shotsCountId}
+												className="text-xs font-semibold uppercase tracking-wider text-muted-foreground"
+											>
+												Random Shots 🥃
+											</label>
+											<input
+												id={shotsCountId}
+												type="text"
+												inputMode="numeric"
+												value={shotsDraft}
+												onChange={(e) => {
+													const raw = e.target.value.replace(/[^0-9]/g, "");
+													setShotsDraft(raw);
+													const n = raw === "" ? 0 : Number(raw);
+													setLocal({
+														...local,
+														shotsCount: Math.min(30, Math.max(0, n)),
+													});
+												}}
+												className="w-full rounded-md border bg-input px-3 py-2 focus:outline-none focus:border-primary focus:ring-3 focus:ring-ring/40"
+											/>
+											<p className="text-xs text-muted-foreground">
+												Random questions marked as shots. The player who picks a
+												shot question has to drink. Picked at game start; never
+												overlaps with Daily Doubles.
+											</p>
+										</div>
+									)}
 
 									<div className="flex justify-end">
 										<Button onClick={close}>Done</Button>

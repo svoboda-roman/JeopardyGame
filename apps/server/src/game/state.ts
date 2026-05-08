@@ -24,6 +24,12 @@ export interface GameOptions {
 	 * 0 means "use only the DDs the quiz authored".
 	 */
 	ddCount: number;
+	/**
+	 * Number of "shot" questions to mark randomly at game start. The
+	 * player who picks a shot question has to drink. Picked from the
+	 * non-DD pool; never overlaps with Daily Doubles.
+	 */
+	shotsCount: number;
 }
 
 export interface InternalFinalQuestion {
@@ -38,6 +44,7 @@ export interface InternalQuestion {
 	position: number;
 	pointValue: number;
 	isDailyDouble: boolean;
+	isShot: boolean;
 	clue: string;
 	answer: string;
 	media: QuestionMediaView[];
@@ -147,6 +154,7 @@ export function newGame(args: {
 			manualPoints: args.options?.manualPoints ?? false,
 			allowReopen: args.options?.allowReopen ?? false,
 			ddCount: args.options?.ddCount ?? 0,
+			shotsCount: args.options?.shotsCount ?? 0,
 		},
 		phase: "lobby",
 		players: {
@@ -214,6 +222,7 @@ export function projectView(state: GameState): GameView {
 		readDelayMs: state.options.readDelayMs,
 		finalEnabled: state.options.finalEnabled,
 		ddCount: state.options.ddCount,
+		shotsCount: state.options.shotsCount,
 		players: Object.values(state.players)
 			.sort((a, b) =>
 				a.isHost === b.isHost
@@ -366,6 +375,7 @@ export type Intent =
 			readDelayMs?: number;
 			finalEnabled?: boolean;
 			ddCount?: number;
+			shotsCount?: number;
 	  }
 	| { type: "wager"; actorId: string; amount: number }
 	| { type: "start_final"; actorId: string }
@@ -409,10 +419,13 @@ export function transition(state: GameState, intent: Intent): TransitionResult {
 			// across the board. Done here (not at game-creation) so each
 			// game is different and the host can adjust the count in lobby.
 			let board = state.board;
-			if (state.options.ddCount > 0) {
-				const candidates = Object.values(board.questions).filter(
-					(q) => !q.isDailyDouble,
-				);
+			const sprinkle = (
+				count: number,
+				eligible: (q: InternalQuestion) => boolean,
+				mark: (q: InternalQuestion) => InternalQuestion,
+			) => {
+				if (count <= 0) return;
+				const candidates = Object.values(board.questions).filter(eligible);
 				for (let i = candidates.length - 1; i > 0; i--) {
 					const j = Math.floor(Math.random() * (i + 1));
 					const a = candidates[i];
@@ -422,19 +435,26 @@ export function transition(state: GameState, intent: Intent): TransitionResult {
 						candidates[j] = a;
 					}
 				}
-				const chosen = new Set(
-					candidates.slice(0, state.options.ddCount).map((q) => q.ref),
-				);
-				if (chosen.size > 0) {
-					const nextQuestions: Record<string, InternalQuestion> = {};
-					for (const [ref, q] of Object.entries(board.questions)) {
-						nextQuestions[ref] = chosen.has(ref)
-							? { ...q, isDailyDouble: true }
-							: q;
-					}
-					board = { ...board, questions: nextQuestions };
+				const chosen = new Set(candidates.slice(0, count).map((q) => q.ref));
+				if (chosen.size === 0) return;
+				const nextQuestions: Record<string, InternalQuestion> = {};
+				for (const [ref, q] of Object.entries(board.questions)) {
+					nextQuestions[ref] = chosen.has(ref) ? mark(q) : q;
 				}
-			}
+				board = { ...board, questions: nextQuestions };
+			};
+			sprinkle(
+				state.options.ddCount,
+				(q) => !q.isDailyDouble,
+				(q) => ({ ...q, isDailyDouble: true }),
+			);
+			// Shots are drawn from the non-DD, non-already-shot pool so the
+			// two markers never overlap on the same question.
+			sprinkle(
+				state.options.shotsCount,
+				(q) => !q.isDailyDouble && !q.isShot,
+				(q) => ({ ...q, isShot: true }),
+			);
 
 			const next: GameState = {
 				...state,
@@ -540,6 +560,7 @@ export function transition(state: GameState, intent: Intent): TransitionResult {
 						categoryRef: q.categoryRef,
 						pointValue: q.pointValue,
 						isDailyDouble: q.isDailyDouble,
+						isShot: q.isShot,
 						clue: q.clue,
 						answer: q.answer,
 						media: q.media,
@@ -788,6 +809,7 @@ export function transition(state: GameState, intent: Intent): TransitionResult {
 						categoryRef: q.categoryRef,
 						pointValue: q.pointValue,
 						isDailyDouble: q.isDailyDouble,
+						isShot: q.isShot,
 						clue: q.clue,
 						answer: q.answer,
 						media: q.media,
@@ -857,6 +879,9 @@ export function transition(state: GameState, intent: Intent): TransitionResult {
 					? { finalEnabled: intent.finalEnabled }
 					: {}),
 				...(intent.ddCount !== undefined ? { ddCount: intent.ddCount } : {}),
+				...(intent.shotsCount !== undefined
+					? { shotsCount: intent.shotsCount }
+					: {}),
 			};
 			const next: GameState = { ...state, options: updatedOptions };
 			const settings = {
@@ -865,6 +890,7 @@ export function transition(state: GameState, intent: Intent): TransitionResult {
 				readDelayMs: updatedOptions.readDelayMs,
 				finalEnabled: updatedOptions.finalEnabled,
 				ddCount: updatedOptions.ddCount,
+				shotsCount: updatedOptions.shotsCount,
 			};
 			return ok(next, [{ type: "settings_updated", settings }]);
 		}

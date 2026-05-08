@@ -116,6 +116,7 @@ async function snapshotQuiz(
 			position: qq.position,
 			pointValue: qq.pointValue,
 			isDailyDouble: qq.isDailyDouble,
+			isShot: false,
 			clue: qq.clue,
 			answer: qq.answer,
 			media: mediaByQ[qq.id] ?? [],
@@ -179,6 +180,7 @@ export const games = new Elysia({ tags: ["games"] })
 			const manualPoints = body.options?.manualPoints ?? false;
 			const allowReopen = body.options?.allowReopen ?? false;
 			const ddCount = body.options?.ddCount ?? 0;
+			const shotsCount = body.options?.shotsCount ?? 0;
 
 			// Read host display name once (profile preferred, fallback to user.name).
 			const profileRow = (
@@ -229,6 +231,7 @@ export const games = new Elysia({ tags: ["games"] })
 										manualPoints,
 										allowReopen,
 										ddCount,
+										shotsCount,
 									},
 								})
 								.returning();
@@ -301,6 +304,7 @@ export const games = new Elysia({ tags: ["games"] })
 						manualPoints: t.Optional(t.Boolean()),
 						allowReopen: t.Optional(t.Boolean()),
 						ddCount: t.Optional(t.Integer({ minimum: 0, maximum: 30 })),
+						shotsCount: t.Optional(t.Integer({ minimum: 0, maximum: 30 })),
 					}),
 				),
 			}),

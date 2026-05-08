@@ -122,6 +122,7 @@ function intentFor(playerId: string, msg: ClientToServer): Intent | null {
 				readDelayMs: msg.readDelayMs,
 				finalEnabled: msg.finalEnabled,
 				ddCount: msg.ddCount,
+				shotsCount: msg.shotsCount,
 			};
 		case "wager":
 			return { type: "wager", actorId: playerId, amount: msg.amount };

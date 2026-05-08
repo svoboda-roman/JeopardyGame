@@ -35,6 +35,8 @@ export interface QuestionView {
 	categoryRef: string;
 	pointValue: number;
 	isDailyDouble: boolean;
+	/** Marked as a "shot" — the picker has to drink. Sprinkled at game start. */
+	isShot: boolean;
 	clue: string;
 	answer: string;
 	media: QuestionMediaView[];
@@ -88,6 +90,8 @@ export interface GameView {
 	readDelayMs: number;
 	finalEnabled: boolean;
 	ddCount: number;
+	/** Number of random "shot" questions sprinkled at start. */
+	shotsCount: number;
 	players: PlayerView[];
 	board: BoardCategoryView[];
 	currentQuestion: QuestionView | null;
@@ -133,6 +137,7 @@ export type ClientToServer =
 			readDelayMs?: number;
 			finalEnabled?: boolean;
 			ddCount?: number;
+			shotsCount?: number;
 	  }
 	| { type: "leave" }
 	| { type: "ping" };
@@ -206,6 +211,7 @@ export type ServerToClient =
 				| "readDelayMs"
 				| "finalEnabled"
 				| "ddCount"
+				| "shotsCount"
 			>;
 	  }
 	| { type: "pong" }

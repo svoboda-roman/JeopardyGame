@@ -321,6 +321,7 @@ export async function getOrLoadRoom(
 					manualPoints?: boolean;
 					allowReopen?: boolean;
 					ddCount?: number;
+					shotsCount?: number;
 				}) ?? {},
 		});
 

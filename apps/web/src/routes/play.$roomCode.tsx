@@ -162,6 +162,7 @@ function PlayPage() {
 						category={activeCategory}
 						pointValue={game.currentQuestion.pointValue}
 						isDailyDouble={game.currentQuestion.isDailyDouble}
+						isShot={game.currentQuestion.isShot}
 						currentWager={game.currentWager}
 						clue={game.currentQuestion.clue}
 						media={game.currentQuestion.media ?? []}
@@ -421,6 +422,7 @@ function ClueCard({
 	category,
 	pointValue,
 	isDailyDouble,
+	isShot,
 	currentWager,
 	clue,
 	media,
@@ -429,6 +431,7 @@ function ClueCard({
 	category: string | null;
 	pointValue: number;
 	isDailyDouble: boolean;
+	isShot: boolean;
 	currentWager: number | null;
 	clue: string;
 	media: { id: string; mime: string; url: string }[];
@@ -445,6 +448,11 @@ function ClueCard({
 					{isDailyDouble && (
 						<span className="text-[10px] font-bold uppercase tracking-wider text-[color:var(--gold)]">
 							Daily Double
+						</span>
+					)}
+					{isShot && (
+						<span className="text-[10px] font-bold uppercase tracking-wider text-[color:var(--gold)] flex items-center gap-1">
+							🥃 Shot
 						</span>
 					)}
 					<span className="score text-sm font-bold rounded-md border border-[color:var(--gold)]/50 px-2 py-0.5">

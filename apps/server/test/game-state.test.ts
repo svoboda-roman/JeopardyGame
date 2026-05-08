@@ -23,6 +23,7 @@ function tinyBoard(): InternalBoard {
 				position: 0,
 				pointValue: 100,
 				isDailyDouble: false,
+				isShot: false,
 				clue: "clue 1",
 				answer: "answer 1",
 				media: [],
@@ -38,6 +39,7 @@ function tinyBoard(): InternalBoard {
 				position: 1,
 				pointValue: 200,
 				isDailyDouble: false,
+				isShot: false,
 				clue: "clue 2",
 				answer: "answer 2",
 				media: [],
@@ -108,6 +110,7 @@ describe("lobby + start", () => {
 					position: q,
 					pointValue: (q + 1) * 100,
 					isDailyDouble: false,
+					isShot: false,
 					clue: "",
 					answer: "",
 					media: [],
@@ -136,6 +139,52 @@ describe("lobby + start", () => {
 			(q) => q.isDailyDouble,
 		).length;
 		expect(after).toBe(4);
+	});
+
+	it("sprinkles shotsCount random shots disjoint from Daily Doubles", () => {
+		const cats = Array.from({ length: 6 }, (_, c) => ({
+			ref: `c${c}`,
+			position: c,
+			title: `Cat ${c}`,
+			questionRefs: Array.from({ length: 5 }, (_, q) => `c${c}q${q}`),
+		}));
+		const questions: Record<string, InternalBoard["questions"][string]> = {};
+		for (const c of cats) {
+			for (let q = 0; q < 5; q++) {
+				const ref = `${c.ref}q${q}`;
+				questions[ref] = {
+					ref,
+					categoryRef: c.ref,
+					position: q,
+					pointValue: (q + 1) * 100,
+					isDailyDouble: false,
+					isShot: false,
+					clue: "",
+					answer: "",
+					media: [],
+					answerMedia: [],
+					youtubeId: null,
+					answerYoutubeId: null,
+					hostNotes: null,
+					buzzWindowMs: null,
+				};
+			}
+		}
+		let s = newGame({
+			roomCode: "SHOTSS",
+			hostId: "u-host",
+			hostPlayer: { id: "p-host", displayName: "Host" },
+			board: { categories: cats, questions },
+			options: { ddCount: 3, shotsCount: 4 },
+		});
+		s = addPlayer(s, { id: "p1", displayName: "P1" }).state;
+		const r = transition(s, { type: "start_game", actorId: "p-host" });
+		const all = Object.values(r.state.board.questions);
+		const dds = all.filter((q) => q.isDailyDouble);
+		const shots = all.filter((q) => q.isShot);
+		expect(dds.length).toBe(3);
+		expect(shots.length).toBe(4);
+		expect(dds.some((q) => q.isShot)).toBe(false);
 	});
 });
 

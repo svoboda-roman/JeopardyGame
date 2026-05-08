@@ -45,6 +45,7 @@ function baseGame(): GameView {
 		readDelayMs: 3000,
 		finalEnabled: true,
 		ddCount: 0,
+		shotsCount: 0,
 		finalJeopardy: null,
 	};
 }
@@ -78,6 +79,7 @@ describe("game store reducer", () => {
 				categoryRef: "c1",
 				pointValue: 100,
 				isDailyDouble: false,
+				isShot: false,
 				clue: "A clue",
 				answer: "An answer",
 				media: [],
@@ -126,6 +128,7 @@ describe("game store reducer", () => {
 				categoryRef: "c1",
 				pointValue: 100,
 				isDailyDouble: false,
+				isShot: false,
 				clue: "A",
 				answer: "a",
 				media: [],
@@ -180,6 +183,7 @@ describe("game store reducer", () => {
 				categoryRef: "c1",
 				pointValue: 100,
 				isDailyDouble: true,
+				isShot: false,
 				clue: "DD clue",
 				answer: "DD answer",
 				media: [],
