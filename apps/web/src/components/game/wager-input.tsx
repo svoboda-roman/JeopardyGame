@@ -50,10 +50,7 @@ export function WagerInput({
 				htmlFor={inputId}
 				className="block text-xs font-semibold uppercase tracking-wider text-muted-foreground"
 			>
-				{label}{" "}
-				<span className="text-foreground">
-					(${min} – ${max})
-				</span>
+				{label} <span className="text-foreground">(min ${min})</span>
 			</label>
 			<div className="flex gap-2">
 				<input
