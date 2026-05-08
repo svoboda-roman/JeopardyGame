@@ -197,6 +197,30 @@ function HostPage() {
 				)}
 			</section>
 
+			{game.phase === "dd_wagering" && ddPending && (
+				<section className="relative overflow-hidden border rounded-2xl p-6 bg-card text-center space-y-3 ring-1 ring-[color:var(--gold)]/40 shadow-[0_0_40px_var(--gold-dim)]">
+					<div
+						aria-hidden
+						className="pointer-events-none absolute inset-0 bg-gradient-to-br from-[color:var(--gold)]/5 via-transparent to-[color:var(--gold)]/10"
+					/>
+					<p className="relative text-xs font-semibold uppercase tracking-[0.3em] text-[color:var(--gold)]">
+						✦ Daily Double ✦
+					</p>
+					<p className="relative text-xl">
+						Waiting for{" "}
+						<strong className="text-foreground">
+							{game.players.find((p) => p.id === ddPending.pickerId)
+								?.displayName ?? "picker"}
+						</strong>{" "}
+						to wager…
+					</p>
+					<p className="relative text-sm text-muted-foreground font-mono">
+						Range: <span className="score">${ddPending.min}</span> –{" "}
+						<span className="score">${ddPending.max}</span>
+					</p>
+				</section>
+			)}
+
 			{showBoard && (
 				<section className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2 sm:gap-3">
 					{game.board.map((cat) => (
@@ -228,30 +252,6 @@ function HostPage() {
 							))}
 						</div>
 					))}
-				</section>
-			)}
-
-			{game.phase === "dd_wagering" && ddPending && (
-				<section className="relative overflow-hidden border rounded-2xl p-6 bg-card text-center space-y-3 ring-1 ring-[color:var(--gold)]/40 shadow-[0_0_40px_var(--gold-dim)]">
-					<div
-						aria-hidden
-						className="pointer-events-none absolute inset-0 bg-gradient-to-br from-[color:var(--gold)]/5 via-transparent to-[color:var(--gold)]/10"
-					/>
-					<p className="relative text-xs font-semibold uppercase tracking-[0.3em] text-[color:var(--gold)]">
-						✦ Daily Double ✦
-					</p>
-					<p className="relative text-xl">
-						Waiting for{" "}
-						<strong className="text-foreground">
-							{game.players.find((p) => p.id === ddPending.pickerId)
-								?.displayName ?? "picker"}
-						</strong>{" "}
-						to wager…
-					</p>
-					<p className="relative text-sm text-muted-foreground font-mono">
-						Range: <span className="score">${ddPending.min}</span> –{" "}
-						<span className="score">${ddPending.max}</span>
-					</p>
 				</section>
 			)}
 
@@ -553,7 +553,7 @@ function QuestionModal({
 									key={m.id}
 									src={apiUrl(m.url)}
 									alt=""
-									className="max-h-72 rounded-md border"
+									className="max-h-72 max-w-full rounded-md border"
 								/>
 							))}
 						</div>
@@ -598,7 +598,7 @@ function QuestionModal({
 												key={m.id}
 												src={apiUrl(m.url)}
 												alt=""
-												className="max-h-48 rounded-md border"
+												className="max-h-48 max-w-full rounded-md border"
 											/>
 										))}
 									</div>
@@ -681,7 +681,7 @@ function NextPlayerButton({
 	players: PlayerLite[];
 	onNextPlayer: () => void;
 }) {
-	const [hovered, setHovered] = useState(false);
+	const [open, setOpen] = useState(false);
 	const hasQueue = buzzQueue.length > 0;
 	const nameOf = (id: string) =>
 		players.find((p) => p.id === id)?.displayName ?? id;
@@ -692,12 +692,19 @@ function NextPlayerButton({
 				variant="outline"
 				disabled={!hasQueue}
 				onClick={onNextPlayer}
-				onMouseEnter={() => setHovered(true)}
-				onMouseLeave={() => setHovered(false)}
+				onMouseEnter={() => setOpen(true)}
+				onMouseLeave={() => setOpen(false)}
+				onFocus={() => setOpen(true)}
+				onBlur={() => setOpen(false)}
 			>
 				Next player
+				{hasQueue && (
+					<span className="ml-2 inline-flex items-center justify-center rounded-full bg-primary/20 px-2 py-0.5 text-xs tabular-nums">
+						{buzzQueue.length}
+					</span>
+				)}
 			</Button>
-			{hovered && (
+			{open && (
 				<div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 z-10 min-w-[10rem] rounded-lg border bg-popover px-3 py-2 text-xs shadow-lg pointer-events-none">
 					{hasQueue ? (
 						<ol className="space-y-1">
