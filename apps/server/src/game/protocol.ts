@@ -58,6 +58,21 @@ export interface BoardCategoryView {
 	}[];
 }
 
+export interface DrinkView {
+	id: string;
+	name: string;
+	amount: "sip" | "shot";
+	price: number;
+}
+
+export interface DrinkOrderView {
+	id: string;
+	buyerId: string;
+	recipientId: string;
+	drinkId: string;
+	atMs: number;
+}
+
 export interface FinalJeopardyView {
 	/** Category, always visible once FJ starts. */
 	category: string;
@@ -107,6 +122,10 @@ export interface GameView {
 	currentWager: number | null;
 	/** Set when the game has Final Jeopardy enabled and a final question. */
 	finalJeopardy: FinalJeopardyView | null;
+	/** Drink catalog snapshotted from the quiz at game-creation time. */
+	drinks: DrinkView[];
+	/** Running log of drinks bought during the game, in arrival order. */
+	drinkOrders: DrinkOrderView[];
 }
 
 // ───── client → server ─────
@@ -139,6 +158,7 @@ export type ClientToServer =
 			ddCount?: number;
 			shotsCount?: number;
 	  }
+	| { type: "buy_drink"; recipientId: string; drinkId: string }
 	| { type: "leave" }
 	| { type: "ping" };
 
@@ -214,5 +234,6 @@ export type ServerToClient =
 				| "shotsCount"
 			>;
 	  }
+	| { type: "drink_purchased"; order: DrinkOrderView }
 	| { type: "pong" }
 	| { type: "error"; code: string; message: string };

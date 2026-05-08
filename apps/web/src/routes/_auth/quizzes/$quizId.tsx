@@ -15,6 +15,7 @@ import { MediaPicker, type PickedMedia } from "#/components/MediaPicker.tsx";
 import { Button } from "#/components/ui/button.tsx";
 import { Tabs } from "#/components/ui/tabs.tsx";
 import { api } from "#/lib/api.ts";
+import { iconForDrink } from "#/lib/drink-icons.ts";
 import { extractYouTubeId } from "#/lib/utils.ts";
 
 const apiUrl = import.meta.env.VITE_API_URL ?? "http://localhost:3000";
@@ -57,11 +58,20 @@ interface FinalQuestion {
 	clue: string;
 	answer: string;
 }
+interface Drink {
+	id: string;
+	quizId: string;
+	position: number;
+	name: string;
+	amount: "sip" | "shot";
+	price: number;
+}
 interface QuizDetail {
 	quiz: Quiz;
 	categories: Category[];
 	questions: Question[];
 	finalQuestion: FinalQuestion | null;
+	drinks: Drink[];
 }
 
 function parseSettings(raw: Record<string, unknown>): GameSettings {
@@ -217,6 +227,8 @@ function EditorPage() {
 					finalQuestion={data.finalQuestion}
 				/>
 			)}
+
+			<DrinksSection quizId={quizId} drinks={data.drinks ?? []} />
 		</PageShell>
 	);
 }
@@ -754,6 +766,135 @@ function QuestionEditor({
 					</div>
 				</div>
 			</div>
+		</div>
+	);
+}
+
+function DrinksSection({
+	quizId,
+	drinks,
+}: {
+	quizId: string;
+	drinks: Drink[];
+}) {
+	const qc = useQueryClient();
+
+	async function add() {
+		await api.quizzes({ id: quizId }).drinks.post({
+			name: "",
+			amount: "shot",
+			price: 0,
+		});
+		await qc.invalidateQueries({ queryKey: ["quiz", quizId] });
+	}
+
+	return (
+		<section className="mt-8 space-y-3">
+			<div className="flex items-end justify-between gap-3">
+				<div>
+					<h2 className="font-heading font-bold text-lg">🍻 Drinks</h2>
+					<p className="text-xs text-muted-foreground">
+						Stock the in-game shop. Players can buy these for each other; the
+						recipient drinks IRL. Icon is picked automatically from the name.
+					</p>
+				</div>
+				<Button variant="outline" size="sm" onClick={add}>
+					Add drink
+				</Button>
+			</div>
+
+			<div className="rounded-2xl border bg-card p-3 space-y-2">
+				{drinks.length === 0 ? (
+					<p className="text-sm text-muted-foreground text-center py-4">
+						No drinks yet — add Vodka, Beer, Tatratea…
+					</p>
+				) : (
+					drinks
+						.slice()
+						.sort((a, b) => a.position - b.position)
+						.map((d) => <DrinkRow key={d.id} quizId={quizId} drink={d} />)
+				)}
+			</div>
+		</section>
+	);
+}
+
+function DrinkRow({ quizId, drink }: { quizId: string; drink: Drink }) {
+	const qc = useQueryClient();
+	const [name, setName] = useState(drink.name);
+	const [amount, setAmount] = useState<"sip" | "shot">(drink.amount);
+	const [priceDraft, setPriceDraft] = useState(String(drink.price));
+	const lastSeenIdRef = useRef(drink.id);
+
+	useEffect(() => {
+		if (drink.id !== lastSeenIdRef.current) {
+			lastSeenIdRef.current = drink.id;
+		}
+		setName(drink.name);
+		setAmount(drink.amount);
+		setPriceDraft(String(drink.price));
+	}, [drink.id, drink.name, drink.amount, drink.price]);
+
+	useEffect(() => {
+		const price = priceDraft === "" ? 0 : Math.min(99999, Number(priceDraft));
+		const changed =
+			name !== drink.name || amount !== drink.amount || price !== drink.price;
+		if (!changed) return;
+		const handle = setTimeout(async () => {
+			await api.drinks({ id: drink.id }).patch({ name, amount, price });
+			await qc.invalidateQueries({ queryKey: ["quiz", quizId] });
+		}, 500);
+		return () => clearTimeout(handle);
+	}, [name, amount, priceDraft, drink, qc, quizId]);
+
+	async function remove() {
+		const ok = window.confirm(`Remove "${drink.name || "this drink"}"?`);
+		if (!ok) return;
+		await api.drinks({ id: drink.id }).delete();
+		await qc.invalidateQueries({ queryKey: ["quiz", quizId] });
+	}
+
+	const icon = iconForDrink(name);
+
+	return (
+		<div className="flex items-center gap-2 rounded-lg border bg-input/30 px-3 py-2">
+			<span className="text-2xl shrink-0" aria-hidden>
+				{icon}
+			</span>
+			<input
+				type="text"
+				value={name}
+				maxLength={80}
+				placeholder="Vodka, Beer, Whiskey…"
+				onChange={(e) => setName(e.target.value)}
+				className="flex-1 min-w-0 rounded-md border bg-input px-2 py-1.5 text-sm focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
+			/>
+			<select
+				value={amount}
+				onChange={(e) => setAmount(e.target.value as "sip" | "shot")}
+				className="rounded-md border bg-input px-2 py-1.5 text-sm"
+			>
+				<option value="sip">Sip</option>
+				<option value="shot">Shot</option>
+			</select>
+			<input
+				type="text"
+				inputMode="numeric"
+				value={priceDraft}
+				placeholder="0"
+				onChange={(e) =>
+					setPriceDraft(e.target.value.replace(/[^0-9]/g, "").slice(0, 5))
+				}
+				className="w-20 rounded-md border bg-input px-2 py-1.5 text-sm tabular-nums"
+			/>
+			<button
+				type="button"
+				onClick={remove}
+				aria-label="Remove drink"
+				className="text-muted-foreground hover:text-destructive p-1"
+			>
+				<HugeiconsIcon icon={Delete02Icon} size={16} strokeWidth={2} />
+			</button>
 		</div>
 	);
 }

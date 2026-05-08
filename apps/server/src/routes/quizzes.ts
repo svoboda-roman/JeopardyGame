@@ -4,6 +4,7 @@ import { db } from "../db/client.ts";
 import {
 	answerMedia as answerMediaTable,
 	category as categoryTable,
+	drink as drinkTable,
 	finalQuestion as finalQuestionTable,
 	media as mediaTable,
 	questionMedia as questionMediaTable,
@@ -43,6 +44,19 @@ async function ownedCategory(categoryId: string, userId: string) {
 	)[0];
 	if (!row) notFound("Category not found");
 	return row.category;
+}
+
+async function ownedDrink(drinkId: string, userId: string) {
+	const row = (
+		await db
+			.select({ drink: drinkTable })
+			.from(drinkTable)
+			.innerJoin(quizTable, eq(quizTable.id, drinkTable.quizId))
+			.where(and(eq(drinkTable.id, drinkId), eq(quizTable.ownerId, userId)))
+			.limit(1)
+	)[0];
+	if (!row) notFound("Drink not found");
+	return row.drink;
 }
 
 async function ownedQuestion(questionId: string, userId: string) {
@@ -213,11 +227,18 @@ export const quizzes = new Elysia({ tags: ["quizzes"] })
 				.limit(1)
 		)[0];
 
+		const drinks = await db
+			.select()
+			.from(drinkTable)
+			.where(eq(drinkTable.quizId, q.id))
+			.orderBy(asc(drinkTable.position));
+
 		return {
 			quiz: q,
 			categories: cats,
 			questions,
 			finalQuestion: final ?? null,
+			drinks,
 		};
 	})
 
@@ -253,6 +274,7 @@ export const quizzes = new Elysia({ tags: ["quizzes"] })
 						readDelayMs: t.Optional(t.Integer({ minimum: 0, maximum: 10000 })),
 						allowReopen: t.Optional(t.Boolean()),
 						ddCount: t.Optional(t.Integer({ minimum: 0, maximum: 30 })),
+						shotsCount: t.Optional(t.Integer({ minimum: 0, maximum: 30 })),
 					}),
 				),
 			}),
@@ -557,5 +579,100 @@ export const quizzes = new Elysia({ tags: ["quizzes"] })
 			.update(quizShareTable)
 			.set({ revokedAt: new Date() })
 			.where(eq(quizShareTable.quizId, params.id));
+		set.status = 204;
+	})
+
+	// ───── Drinks ─────
+	.post(
+		"/quizzes/:id/drinks",
+		async ({ request, params, body, set }) => {
+			const u = await requireUser(request);
+			await ownedQuiz(params.id, u.id);
+			const created = await db.transaction(async (tx) => {
+				const existing = await tx
+					.select({ position: drinkTable.position })
+					.from(drinkTable)
+					.where(eq(drinkTable.quizId, params.id));
+				const nextPos = existing.reduce(
+					(m, r) => Math.max(m, r.position + 1),
+					0,
+				);
+				const [d] = await tx
+					.insert(drinkTable)
+					.values({
+						quizId: params.id,
+						position: nextPos,
+						name: body.name ?? "",
+						amount: body.amount ?? "shot",
+						price: body.price ?? 0,
+					})
+					.returning();
+				if (!d) throw new Error("drink insert returned no row");
+				return d;
+			});
+			set.status = 201;
+			return { drink: created };
+		},
+		{
+			body: t.Object({
+				name: t.Optional(t.String({ maxLength: 80 })),
+				amount: t.Optional(t.Union([t.Literal("sip"), t.Literal("shot")])),
+				price: t.Optional(t.Integer({ minimum: 0, maximum: 99999 })),
+			}),
+		},
+	)
+
+	.patch(
+		"/drinks/:id",
+		async ({ request, params, body }) => {
+			const u = await requireUser(request);
+			await ownedDrink(params.id, u.id);
+			const [updated] = await db
+				.update(drinkTable)
+				.set({
+					...(body.name !== undefined ? { name: body.name } : {}),
+					...(body.amount !== undefined ? { amount: body.amount } : {}),
+					...(body.price !== undefined ? { price: body.price } : {}),
+				})
+				.where(eq(drinkTable.id, params.id))
+				.returning();
+			return { drink: updated };
+		},
+		{
+			body: t.Object({
+				name: t.Optional(t.String({ maxLength: 80 })),
+				amount: t.Optional(t.Union([t.Literal("sip"), t.Literal("shot")])),
+				price: t.Optional(t.Integer({ minimum: 0, maximum: 99999 })),
+			}),
+		},
+	)
+
+	.delete("/drinks/:id", async ({ request, params, set }) => {
+		const u = await requireUser(request);
+		const d = await ownedDrink(params.id, u.id);
+		await db.transaction(async (tx) => {
+			await tx.delete(drinkTable).where(eq(drinkTable.id, params.id));
+			const remaining = await tx
+				.select()
+				.from(drinkTable)
+				.where(eq(drinkTable.quizId, d.quizId))
+				.orderBy(asc(drinkTable.position));
+			for (let i = 0; i < remaining.length; i++) {
+				const r = remaining[i];
+				if (!r) continue;
+				await tx
+					.update(drinkTable)
+					.set({ position: 1000 + i })
+					.where(eq(drinkTable.id, r.id));
+			}
+			for (let i = 0; i < remaining.length; i++) {
+				const r = remaining[i];
+				if (!r) continue;
+				await tx
+					.update(drinkTable)
+					.set({ position: i })
+					.where(eq(drinkTable.id, r.id));
+			}
+		});
 		set.status = 204;
 	});

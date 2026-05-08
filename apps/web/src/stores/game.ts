@@ -1,4 +1,5 @@
 import type {
+	DrinkOrderView,
 	FinalJeopardyView,
 	GameView,
 	PlayerView,
@@ -22,8 +23,11 @@ export interface GameStoreState {
 	fjEligible: string[];
 	/** Latest one-off error pushed by the server (e.g. early_buzz). */
 	lastError: { code: string; message: string } | null;
+	/** Latest drink order — used to fire transient toasts. Cleared by UI. */
+	lastDrink: DrinkOrderView | null;
 	/** Apply a server→client message; mutates the store. */
 	apply: (msg: ServerToClient) => void;
+	clearLastDrink: () => void;
 	reset: () => void;
 }
 
@@ -45,12 +49,18 @@ export const createGameStore = () =>
 		ddPending: null,
 		fjEligible: [],
 		lastError: null,
+		lastDrink: null,
 
 		apply(msg) {
 			switch (msg.type) {
 				case "snapshot":
 					set({
-						game: { ...msg.game, buzzQueue: msg.game.buzzQueue ?? [] },
+						game: {
+							...msg.game,
+							buzzQueue: msg.game.buzzQueue ?? [],
+							drinks: msg.game.drinks ?? [],
+							drinkOrders: msg.game.drinkOrders ?? [],
+						},
 						selfPlayerId: msg.you.playerId,
 						ddPending: null,
 						fjEligible: msg.game.finalJeopardy
@@ -316,12 +326,29 @@ export const createGameStore = () =>
 					set({ game: { ...g, ...msg.settings } });
 					return;
 				}
+				case "drink_purchased": {
+					const g = get().game;
+					if (!g) return;
+					if (g.drinkOrders.some((o) => o.id === msg.order.id)) return;
+					set({
+						game: {
+							...g,
+							drinkOrders: [...g.drinkOrders, msg.order],
+						},
+						lastDrink: msg.order,
+					});
+					return;
+				}
 				case "error":
 					set({ lastError: { code: msg.code, message: msg.message } });
 					return;
 				case "pong":
 					return;
 			}
+		},
+
+		clearLastDrink() {
+			set({ lastDrink: null });
 		},
 
 		reset() {
@@ -331,6 +358,7 @@ export const createGameStore = () =>
 				ddPending: null,
 				fjEligible: [],
 				lastError: null,
+				lastDrink: null,
 			});
 		},
 	}));

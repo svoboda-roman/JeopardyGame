@@ -47,6 +47,8 @@ function baseGame(): GameView {
 		ddCount: 0,
 		shotsCount: 0,
 		finalJeopardy: null,
+		drinks: [],
+		drinkOrders: [],
 	};
 }
 

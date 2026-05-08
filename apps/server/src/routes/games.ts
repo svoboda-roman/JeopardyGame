@@ -4,6 +4,7 @@ import { db } from "../db/client.ts";
 import {
 	answerMedia as answerMediaTable,
 	category as categoryTable,
+	drink as drinkTable,
 	finalQuestion as finalQuestionTable,
 	gamePlayer as gamePlayerTable,
 	gameResult as gameResultTable,
@@ -16,6 +17,7 @@ import {
 	userProfile as userProfileTable,
 	user as userTable,
 } from "../db/schema.ts";
+import type { DrinkView } from "../game/protocol.ts";
 import { evictRoom, peekRoom, type RankingEntry } from "../game/rooms.ts";
 import type {
 	InternalBoard,
@@ -28,6 +30,7 @@ import { generateRoomCode } from "../lib/room-code.ts";
 export interface PersistedSnapshot {
 	board: InternalBoard;
 	finalQuestion: InternalFinalQuestion | null;
+	drinks: DrinkView[];
 }
 
 // Tunable cap from sub-plan A2 — 6 players (incl. host).
@@ -157,7 +160,19 @@ async function snapshotQuiz(
 		}
 	}
 
-	return { board, finalQuestion };
+	const drinkRows = await db
+		.select()
+		.from(drinkTable)
+		.where(eq(drinkTable.quizId, quizId))
+		.orderBy(asc(drinkTable.position));
+	const drinks: DrinkView[] = drinkRows.map((d) => ({
+		id: d.id,
+		name: d.name,
+		amount: d.amount === "sip" ? "sip" : "shot",
+		price: d.price,
+	}));
+
+	return { board, finalQuestion, drinks };
 }
 
 export const games = new Elysia({ tags: ["games"] })

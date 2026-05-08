@@ -11,6 +11,8 @@ import {
 import { createPortal } from "react-dom";
 import type { ClientToServer, GameView } from "server/src/game/protocol.ts";
 import { useStore } from "zustand";
+import { DrinkShopButton } from "#/components/DrinkShop.tsx";
+import { DrinkToast } from "#/components/DrinkToast.tsx";
 import { Button } from "#/components/ui/button.tsx";
 import { Tabs } from "#/components/ui/tabs.tsx";
 import { apiUrl } from "#/lib/api.ts";
@@ -39,6 +41,9 @@ function HostPage() {
 	const game = useStore(store, (s) => s.game);
 	const ddPending = useStore(store, (s) => s.ddPending);
 	const fjEligible = useStore(store, (s) => s.fjEligible);
+	const selfId = useStore(store, (s) => s.selfPlayerId);
+	const lastDrink = useStore(store, (s) => s.lastDrink);
+	const clearLastDrink = useStore(store, (s) => s.clearLastDrink);
 
 	useBuzzSound(game?.phase ?? null);
 
@@ -168,9 +173,22 @@ function HostPage() {
 								Start Final Jeopardy
 							</Button>
 						)}
+						{game.phase !== "lobby" && (game.drinks ?? []).length > 0 && (
+							<DrinkShopButton game={game} selfId={selfId} send={send} />
+						)}
 					</div>
 				</div>
 			</header>
+
+			{lastDrink && (
+				<DrinkToast
+					order={lastDrink}
+					drinks={game.drinks ?? []}
+					players={game.players}
+					selfId={selfId}
+					onDismiss={clearLastDrink}
+				/>
+			)}
 
 			<section className="rounded-2xl border bg-card/80 backdrop-blur-sm p-4 sm:p-5">
 				<div className="flex items-center gap-2 mb-3">

@@ -225,6 +225,7 @@ export class RoomDriver {
 function readSnapshot(raw: unknown): {
 	board: InternalBoard;
 	finalQuestion: InternalFinalQuestion | null;
+	drinks: PersistedSnapshot["drinks"];
 } {
 	const v = raw as PersistedSnapshot | InternalBoard;
 	const out =
@@ -232,8 +233,9 @@ function readSnapshot(raw: unknown): {
 			? {
 					board: (v as PersistedSnapshot).board,
 					finalQuestion: (v as PersistedSnapshot).finalQuestion ?? null,
+					drinks: (v as PersistedSnapshot).drinks ?? [],
 				}
-			: { board: v as InternalBoard, finalQuestion: null };
+			: { board: v as InternalBoard, finalQuestion: null, drinks: [] };
 	// Backfill media[] for snapshots persisted before media support landed.
 	for (const q of Object.values(out.board.questions)) {
 		if (!Array.isArray((q as { media?: unknown }).media)) {
@@ -297,7 +299,7 @@ export async function getOrLoadRoom(
 			.limit(1);
 		const snapRow = snap[0];
 		if (!snapRow) return null;
-		const { board, finalQuestion } = readSnapshot(snapRow.quiz);
+		const { board, finalQuestion, drinks } = readSnapshot(snapRow.quiz);
 
 		const players = await db
 			.select()
@@ -314,6 +316,7 @@ export async function getOrLoadRoom(
 			hostPlayer: { id: hostPlayer.id, displayName: hostPlayer.displayName },
 			board,
 			finalQuestion,
+			drinks,
 			options:
 				(g.options as {
 					readDelayMs?: number;

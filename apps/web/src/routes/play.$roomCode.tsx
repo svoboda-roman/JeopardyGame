@@ -1,6 +1,8 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useId, useState } from "react";
 import { useStore } from "zustand";
+import { DrinkShopButton } from "#/components/DrinkShop.tsx";
+import { DrinkToast } from "#/components/DrinkToast.tsx";
 import { WagerInput } from "#/components/game/wager-input.tsx";
 import { Button } from "#/components/ui/button.tsx";
 import { apiUrl } from "#/lib/api.ts";
@@ -22,6 +24,8 @@ function PlayPage() {
 	const ddPending = useStore(store, (s) => s.ddPending);
 	const fjEligible = useStore(store, (s) => s.fjEligible);
 	const lastError = useStore(store, (s) => s.lastError);
+	const lastDrink = useStore(store, (s) => s.lastDrink);
+	const clearLastDrink = useStore(store, (s) => s.clearLastDrink);
 
 	// If we land here from a shared /play/<code> link without ever having
 	// joined this game, the WS rejects us with 4403. Bounce to the join
@@ -137,6 +141,22 @@ function PlayPage() {
 				currentPlayerId={game.currentPlayerId}
 				currentPickerId={game.currentPickerId}
 			/>
+
+			{game.phase !== "lobby" && (game.drinks ?? []).length > 0 && (
+				<div className="flex justify-end">
+					<DrinkShopButton game={game} selfId={selfId} send={send} />
+				</div>
+			)}
+
+			{lastDrink && (
+				<DrinkToast
+					order={lastDrink}
+					drinks={game.drinks ?? []}
+					players={game.players}
+					selfId={selfId}
+					onDismiss={clearLastDrink}
+				/>
+			)}
 
 			{isDDPicker && ddPending && (
 				<section className="border rounded-2xl p-4 space-y-3 bg-card glow-primary">

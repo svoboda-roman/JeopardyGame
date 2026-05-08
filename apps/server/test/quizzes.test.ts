@@ -186,3 +186,83 @@ describe("quiz CRUD", () => {
 		expect(res.status).toBeLessThan(500);
 	});
 });
+
+describe("drinks CRUD", () => {
+	it("creates, lists, patches, deletes; respects ownership", async () => {
+		const quiz = await createQuiz(cookie, "Drinks quiz");
+
+		// Create two drinks
+		const c1 = await call(`/quizzes/${quiz.id}/drinks`, {
+			method: "POST",
+			headers: { "Content-Type": "application/json", cookie },
+			body: JSON.stringify({ name: "Vodka", amount: "shot", price: 60 }),
+		});
+		expect(c1.status).toBe(201);
+		const created1 = (
+			(await c1.json()) as {
+				drink: { id: string; position: number };
+			}
+		).drink;
+		expect(created1.position).toBe(0);
+
+		const c2 = await call(`/quizzes/${quiz.id}/drinks`, {
+			method: "POST",
+			headers: { "Content-Type": "application/json", cookie },
+			body: JSON.stringify({ name: "Beer", amount: "sip", price: 30 }),
+		});
+		const created2 = (
+			(await c2.json()) as {
+				drink: { id: string; position: number };
+			}
+		).drink;
+		expect(created2.position).toBe(1);
+
+		// Detail GET returns drinks ordered
+		const detail = (await (
+			await call(`/quizzes/${quiz.id}`, { headers: { cookie } })
+		).json()) as {
+			drinks: { id: string; name: string; amount: string; price: number }[];
+		};
+		expect(detail.drinks.map((d) => d.name)).toEqual(["Vodka", "Beer"]);
+
+		// PATCH first drink
+		const p = await call(`/drinks/${created1.id}`, {
+			method: "PATCH",
+			headers: { "Content-Type": "application/json", cookie },
+			body: JSON.stringify({ price: 80 }),
+		});
+		expect(p.status).toBe(200);
+
+		// Other user can't touch it
+		const blocked = await call(`/drinks/${created1.id}`, {
+			method: "PATCH",
+			headers: { "Content-Type": "application/json", cookie: otherCookie },
+			body: JSON.stringify({ name: "stolen" }),
+		});
+		expect(blocked.status).toBe(404);
+
+		// DELETE first drink → second collapses to position 0
+		const d = await call(`/drinks/${created1.id}`, {
+			method: "DELETE",
+			headers: { cookie },
+		});
+		expect(d.status).toBe(204);
+		const detail2 = (await (
+			await call(`/quizzes/${quiz.id}`, { headers: { cookie } })
+		).json()) as { drinks: { name: string; position: number }[] };
+		expect(detail2.drinks).toHaveLength(1);
+		expect(detail2.drinks[0]?.position).toBe(0);
+		expect(detail2.drinks[0]?.name).toBe("Beer");
+	});
+
+	it("rejects invalid amount", async () => {
+		const quiz = await createQuiz(cookie, "Drinks invalid");
+		const res = await call(`/quizzes/${quiz.id}/drinks`, {
+			method: "POST",
+			headers: { "Content-Type": "application/json", cookie },
+			body: JSON.stringify({ name: "X", amount: "gulp", price: 0 }),
+		});
+		expect(res.status).toBeGreaterThanOrEqual(400);
+		expect(res.status).toBeLessThan(500);
+	});
+});

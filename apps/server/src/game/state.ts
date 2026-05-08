@@ -1,4 +1,6 @@
 import type {
+	DrinkOrderView,
+	DrinkView,
 	FinalJeopardyView,
 	GameView,
 	Phase,
@@ -109,6 +111,10 @@ export interface GameState {
 	fjJudged: Record<string, "correct" | "incorrect" | "no_answer">;
 	/** True once host clicked Reveal Clue (i.e. all wagers are in or skipped). */
 	fjClueRevealed: boolean;
+	/** Drink catalog from the quiz snapshot. Static for the game's lifetime. */
+	drinks: DrinkView[];
+	/** All drink purchases that have happened, in chronological order. */
+	drinkOrders: DrinkOrderView[];
 }
 
 // ───── Result + error helpers ─────
@@ -143,6 +149,7 @@ export function newGame(args: {
 	hostPlayer: { id: string; displayName: string };
 	board: InternalBoard;
 	finalQuestion?: InternalFinalQuestion | null;
+	drinks?: DrinkView[];
 	options?: Partial<GameOptions>;
 }): GameState {
 	return {
@@ -180,6 +187,8 @@ export function newGame(args: {
 		fjAnswers: {},
 		fjJudged: {},
 		fjClueRevealed: false,
+		drinks: args.drinks ?? [],
+		drinkOrders: [],
 	};
 }
 
@@ -268,6 +277,8 @@ export function projectView(state: GameState): GameView {
 		currentPickerId: state.currentPickerId,
 		currentWager: state.currentWager,
 		finalJeopardy: projectFinal(state),
+		drinks: state.drinks,
+		drinkOrders: state.drinkOrders,
 	};
 }
 
@@ -376,6 +387,13 @@ export type Intent =
 			finalEnabled?: boolean;
 			ddCount?: number;
 			shotsCount?: number;
+	  }
+	| {
+			type: "buy_drink";
+			actorId: string;
+			recipientId: string;
+			drinkId: string;
+			nowMs: number;
 	  }
 	| { type: "wager"; actorId: string; amount: number }
 	| { type: "start_final"; actorId: string }
@@ -1061,6 +1079,30 @@ export function transition(state: GameState, intent: Intent): TransitionResult {
 				broadcasts.push({ type: "game_completed" });
 			}
 			return ok(next, broadcasts);
+		}
+
+		case "buy_drink": {
+			if (state.phase === "lobby")
+				throw new GameError("invalid_state", "Shop opens once the game starts");
+			requirePlayer(state, intent.actorId);
+			if (intent.actorId === intent.recipientId)
+				throw new GameError("cannot_self_buy", "Buy for someone else");
+			if (!state.players[intent.recipientId])
+				throw new GameError("not_found", "Unknown recipient");
+			const drink = state.drinks.find((d) => d.id === intent.drinkId);
+			if (!drink) throw new GameError("not_found", "Unknown drink");
+			const order: DrinkOrderView = {
+				id: crypto.randomUUID(),
+				buyerId: intent.actorId,
+				recipientId: intent.recipientId,
+				drinkId: drink.id,
+				atMs: intent.nowMs,
+			};
+			const next: GameState = {
+				...state,
+				drinkOrders: [...state.drinkOrders, order],
+			};
+			return ok(next, [{ type: "drink_purchased", order }]);
 		}
 	}
 }

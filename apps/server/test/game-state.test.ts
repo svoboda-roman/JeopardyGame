@@ -428,6 +428,101 @@ describe("one-question buzz cycle", () => {
 	});
 });
 
+describe("buy_drink", () => {
+	let s: GameState;
+	beforeEach(() => {
+		s = newGame({
+			roomCode: "DRINKS",
+			hostId: "u-host",
+			hostPlayer: { id: "p-host", displayName: "Host" },
+			board: tinyBoard(),
+			drinks: [
+				{ id: "d1", name: "Vodka", amount: "shot", price: 60 },
+				{ id: "d2", name: "Beer", amount: "sip", price: 30 },
+			],
+		});
+		s = addPlayer(s, { id: "p1", displayName: "P1" }).state;
+		s = addPlayer(s, { id: "p2", displayName: "P2" }).state;
+		s = transition(s, { type: "start_game", actorId: "p-host" }).state;
+	});
+
+	it("appends an order and broadcasts drink_purchased", () => {
+		const r = transition(s, {
+			type: "buy_drink",
+			actorId: "p1",
+			recipientId: "p2",
+			drinkId: "d1",
+			nowMs: 1_000,
+		});
+		expect(r.state.drinkOrders).toHaveLength(1);
+		const order = r.state.drinkOrders[0];
+		expect(order?.buyerId).toBe("p1");
+		expect(order?.recipientId).toBe("p2");
+		expect(order?.drinkId).toBe("d1");
+		const broadcast = r.broadcasts.find((b) => b.type === "drink_purchased");
+		expect(broadcast).toBeTruthy();
+		// Scores untouched.
+		expect(r.state.players.p1?.score).toBe(0);
+		expect(r.state.players.p2?.score).toBe(0);
+	});
+
+	it("rejects self-buy", () => {
+		expect(() =>
+			transition(s, {
+				type: "buy_drink",
+				actorId: "p1",
+				recipientId: "p1",
+				drinkId: "d1",
+				nowMs: 1_000,
+			}),
+		).toThrow();
+	});
+
+	it("rejects unknown drink", () => {
+		expect(() =>
+			transition(s, {
+				type: "buy_drink",
+				actorId: "p1",
+				recipientId: "p2",
+				drinkId: "missing",
+				nowMs: 1_000,
+			}),
+		).toThrow();
+	});
+
+	it("allows buying for the host", () => {
+		const r = transition(s, {
+			type: "buy_drink",
+			actorId: "p1",
+			recipientId: "p-host",
+			drinkId: "d2",
+			nowMs: 1_000,
+		});
+		expect(r.state.drinkOrders).toHaveLength(1);
+		expect(r.state.drinkOrders[0]?.recipientId).toBe("p-host");
+	});
+
+	it("rejects in lobby phase", () => {
+		const lobby = newGame({
+			roomCode: "DRINKL",
+			hostId: "u-host",
+			hostPlayer: { id: "p-host", displayName: "Host" },
+			board: tinyBoard(),
+			drinks: [{ id: "d1", name: "Vodka", amount: "shot", price: 60 }],
+		});
+		const withPlayer = addPlayer(lobby, { id: "p1", displayName: "P1" }).state;
+		expect(() =>
+			transition(withPlayer, {
+				type: "buy_drink",
+				actorId: "p1",
+				recipientId: "p-host",
+				drinkId: "d1",
+				nowMs: 1_000,
+			}),
+		).toThrow();
+	});
+});
+
 describe("Daily Double", () => {
 	function ddBoard(): InternalBoard {
 		const tiny = tinyBoard();

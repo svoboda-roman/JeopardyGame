@@ -85,6 +85,13 @@
       "when": 1778091600000,
       "tag": "0011_idempotent_fix",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1778237508188,
+      "tag": "0012_slim_archangel",
+      "breakpoints": true
     }
   ]
 }

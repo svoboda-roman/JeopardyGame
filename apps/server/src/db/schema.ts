@@ -126,6 +126,21 @@ export const quiz = pgTable("quiz", {
 		.defaultNow(),
 });
 
+export const drink = pgTable(
+	"drink",
+	{
+		id: text("id").primaryKey().$defaultFn(uuid),
+		quizId: text("quiz_id")
+			.notNull()
+			.references(() => quiz.id, { onDelete: "cascade" }),
+		position: integer("position").notNull(),
+		name: text("name").notNull(),
+		amount: text("amount").notNull(), // 'sip' | 'shot'
+		price: integer("price").notNull().default(0),
+	},
+	(t) => [unique("drink_quiz_position_uk").on(t.quizId, t.position)],
+);
+
 export const category = pgTable(
 	"category",
 	{
@@ -369,3 +384,4 @@ export type GamePlayer = typeof gamePlayer.$inferSelect;
 export type GameQuestionState = typeof gameQuestionState.$inferSelect;
 export type GameEvent = typeof gameEvent.$inferSelect;
 export type GameResult = typeof gameResult.$inferSelect;
+export type Drink = typeof drink.$inferSelect;
