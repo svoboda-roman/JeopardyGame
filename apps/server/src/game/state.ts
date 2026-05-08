@@ -204,7 +204,7 @@ export function ddWagerBounds(
 		.filter((q) => !state.closedQuestions.has(q.ref))
 		.map((q) => q.pointValue);
 	const maxRemaining = remaining.length > 0 ? Math.max(...remaining) : 5;
-	const max = Math.max(5, maxRemaining, p?.score ?? 0);
+	const max = Math.max(5, maxRemaining, p?.score ?? 0) * 100;
 	return { min: 5, max };
 }
 
