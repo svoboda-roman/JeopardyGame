@@ -12,6 +12,7 @@ import { createPortal } from "react-dom";
 import type { ClientToServer, GameView } from "server/src/game/protocol.ts";
 import { useStore } from "zustand";
 import { Button } from "#/components/ui/button.tsx";
+import { ZoomableImage } from "#/components/ZoomableImage.tsx";
 import { apiUrl } from "#/lib/api.ts";
 import { useGameSocket } from "#/lib/game-socket.ts";
 
@@ -549,11 +550,10 @@ function QuestionModal({
 					{media.length > 0 && (
 						<div className="flex flex-wrap justify-center gap-3">
 							{media.map((m) => (
-								<img
+								<ZoomableImage
 									key={m.id}
 									src={apiUrl(m.url)}
-									alt=""
-									className="max-h-72 max-w-full rounded-md border"
+									className="max-h-72"
 								/>
 							))}
 						</div>
@@ -594,11 +594,10 @@ function QuestionModal({
 								{answerMedia.length > 0 && (
 									<div className="flex flex-wrap justify-center gap-3">
 										{answerMedia.map((m) => (
-											<img
+											<ZoomableImage
 												key={m.id}
 												src={apiUrl(m.url)}
-												alt=""
-												className="max-h-48 max-w-full rounded-md border"
+												className="max-h-48"
 											/>
 										))}
 									</div>

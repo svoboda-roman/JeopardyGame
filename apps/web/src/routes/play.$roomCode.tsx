@@ -3,6 +3,7 @@ import { useEffect, useId, useState } from "react";
 import { useStore } from "zustand";
 import { WagerInput } from "#/components/game/wager-input.tsx";
 import { Button } from "#/components/ui/button.tsx";
+import { ZoomableImage } from "#/components/ZoomableImage.tsx";
 import { apiUrl } from "#/lib/api.ts";
 import { useGameSocket } from "#/lib/game-socket.ts";
 
@@ -455,11 +456,10 @@ function ClueCard({
 			{media.length > 0 && (
 				<div className="px-4 pt-4 flex flex-wrap justify-center gap-2">
 					{media.map((m) => (
-						<img
+						<ZoomableImage
 							key={m.id}
 							src={apiUrl(m.url)}
-							alt=""
-							className="max-h-56 max-w-full rounded-md border"
+							className="max-h-56"
 						/>
 					))}
 				</div>
