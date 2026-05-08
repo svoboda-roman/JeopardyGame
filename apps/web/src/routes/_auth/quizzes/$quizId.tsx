@@ -13,6 +13,7 @@ import { PageHeader } from "#/components/layout/page-header.tsx";
 import { PageShell } from "#/components/layout/page-shell.tsx";
 import { MediaPicker, type PickedMedia } from "#/components/MediaPicker.tsx";
 import { Button } from "#/components/ui/button.tsx";
+import { Tabs } from "#/components/ui/tabs.tsx";
 import { api } from "#/lib/api.ts";
 import { extractYouTubeId } from "#/lib/utils.ts";
 
@@ -515,61 +516,50 @@ function QuestionEditor({
 					</button>
 				</div>
 
-				{/* Tabs */}
-				<div className="flex border-b border-border mx-5 shrink-0">
-					<button
-						type="button"
-						onClick={() => setTab("question")}
-						className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors -mb-px ${
-							tab === "question"
-								? "border-primary text-foreground"
-								: "border-transparent text-muted-foreground hover:text-foreground"
-						}`}
-					>
-						<span
-							className={`flex items-center justify-center w-5 h-5 rounded text-[11px] font-bold ${tab === "question" ? "bg-primary/20 text-primary" : "bg-muted text-muted-foreground"}`}
-						>
-							<HugeiconsIcon icon={HelpCircleIcon} size={13} strokeWidth={2} />
-						</span>
-						Question
-					</button>
-					<button
-						type="button"
-						onClick={() => setTab("answer")}
-						className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors -mb-px ${
-							tab === "answer"
-								? "border-emerald-500 text-foreground"
-								: "border-transparent text-muted-foreground hover:text-foreground"
-						}`}
-					>
-						<span
-							className={`flex items-center justify-center w-5 h-5 rounded text-[11px] font-bold ${tab === "answer" ? "bg-emerald-500/20 text-emerald-400" : "bg-muted text-muted-foreground"}`}
-						>
-							<HugeiconsIcon
-								icon={CheckmarkCircle01Icon}
-								size={13}
-								strokeWidth={2}
-							/>
-						</span>
-						Answer
-					</button>
-					<button
-						type="button"
-						onClick={() => setTab("options")}
-						className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors -mb-px ${
-							tab === "options"
-								? "border-muted-foreground text-foreground"
-								: "border-transparent text-muted-foreground hover:text-foreground"
-						}`}
-					>
-						<span
-							className={`flex items-center justify-center w-5 h-5 rounded ${tab === "options" ? "bg-muted text-foreground" : "bg-muted text-muted-foreground"}`}
-						>
-							<HugeiconsIcon icon={Settings01Icon} size={13} strokeWidth={2} />
-						</span>
-						Options
-					</button>
-				</div>
+				<Tabs
+					className="mx-5 shrink-0"
+					value={tab}
+					onChange={setTab}
+					items={[
+						{
+							key: "question",
+							label: "Question",
+							icon: (
+								<HugeiconsIcon
+									icon={HelpCircleIcon}
+									size={13}
+									strokeWidth={2}
+								/>
+							),
+						},
+						{
+							key: "answer",
+							label: "Answer",
+							icon: (
+								<HugeiconsIcon
+									icon={CheckmarkCircle01Icon}
+									size={13}
+									strokeWidth={2}
+								/>
+							),
+							activeBorderClass: "border-emerald-500",
+							iconActiveClass: "bg-emerald-500/20 text-emerald-400",
+						},
+						{
+							key: "options",
+							label: "Options",
+							icon: (
+								<HugeiconsIcon
+									icon={Settings01Icon}
+									size={13}
+									strokeWidth={2}
+								/>
+							),
+							activeBorderClass: "border-muted-foreground",
+							iconActiveClass: "bg-muted text-foreground",
+						},
+					]}
+				/>
 
 				{/* Scrollable body */}
 				<div className="overflow-y-auto flex-1 px-5 py-4 space-y-4">

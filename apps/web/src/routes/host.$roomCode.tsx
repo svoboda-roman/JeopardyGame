@@ -12,6 +12,7 @@ import { createPortal } from "react-dom";
 import type { ClientToServer, GameView } from "server/src/game/protocol.ts";
 import { useStore } from "zustand";
 import { Button } from "#/components/ui/button.tsx";
+import { Tabs } from "#/components/ui/tabs.tsx";
 import { apiUrl } from "#/lib/api.ts";
 import { useGameSocket } from "#/lib/game-socket.ts";
 
@@ -1176,30 +1177,19 @@ function LobbySettingsButton({
 										Game settings
 									</h2>
 
-									<div className="flex border-b border-border -mx-1">
-										<button
-											type="button"
-											onClick={() => setTab("general")}
-											className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors -mb-px ${
-												tab === "general"
-													? "border-primary text-foreground"
-													: "border-transparent text-muted-foreground hover:text-foreground"
-											}`}
-										>
-											General
-										</button>
-										<button
-											type="button"
-											onClick={() => setTab("alcohol")}
-											className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors -mb-px ${
-												tab === "alcohol"
-													? "border-[color:var(--gold)] text-foreground"
-													: "border-transparent text-muted-foreground hover:text-foreground"
-											}`}
-										>
-											🍻 Alcohol
-										</button>
-									</div>
+									<Tabs
+										className="-mx-1"
+										value={tab}
+										onChange={setTab}
+										items={[
+											{ key: "general", label: "General" },
+											{
+												key: "alcohol",
+												label: "🍻 Alcohol",
+												activeBorderClass: "border-[color:var(--gold)]",
+											},
+										]}
+									/>
 
 									{tab === "general" ? (
 										<>
